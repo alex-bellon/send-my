@@ -265,9 +265,6 @@ void app_main(void)
     esp_bluedroid_init();
     esp_bluedroid_enable();
 
-    // Initial test message sent after boot
-    static uint8_t data_to_send[] = "TEST MESSAGE";
-
     esp_err_t status;
     //register the scan callback function to the gap module
     if ((status = esp_ble_gap_register_callback(esp_gap_cb)) != ESP_OK) {
@@ -276,33 +273,20 @@ void app_main(void)
     }
 
     uint32_t current_message_id = 0;
-    
-    ESP_LOGI(LOG_TAG, "Sending initial default message: %s", data_to_send);
-
-    send_data_once_blocking(data_to_send, sizeof(data_to_send), current_message_id);
-
+   
     ESP_LOGI(LOG_TAG, "Entering serial modem mode");
     init_serial();
 
     // UART test line
     uart_write_bytes(UART_PORT_NUM, (const char *) "Serial activated. Waiting for text lines.\n", 42);
 
-    int len = sizeof(data_to_send);
-    uint8_t *data = data_to_send; // allocated by serial reader
-    uint8_t *new_data = 0;
+    int len = 10;
+    uint8_t data[len];
 
     while (1) {
-        if((new_data = read_line_or_dismiss(&len))) {
-            data = new_data;
-            current_message_id++;
-            ESP_LOGI(LOG_TAG, "Received line (len: %d): %s", len, data);
-        }
-        else {
-            ESP_LOGI(LOG_TAG, "No new input. Continuing sending old data");
-        }
-        if(data) { // should always be set
-            send_data_once_blocking(data, len, current_message_id);
-        }
+        snprintf(data, len, "%d", current_message_id);
+        send_data_once_blocking(data, len, current_message_id);
+        current_message_id++;
         vTaskDelay(200);
     }
     esp_ble_gap_stop_advertising();
