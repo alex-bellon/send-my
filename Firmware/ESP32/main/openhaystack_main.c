@@ -224,7 +224,7 @@ uint8_t* read_line_or_dismiss(int* len) {
     int size;
     uint8_t *ptr = line;
     while(1) {
-        size = uart_read_bytes(UART_PORT_NUM, (unsigned char *)ptr, 1, 20 / portTICK_RATE_MS);
+        size = uart_read_bytes(UART_PORT_NUM, (unsigned char *)ptr, 1, 20 / portTICK_PERIOD_MS);
         if (size == 1) {
             if (*ptr == '\n') {
                 *ptr = 0;
@@ -284,7 +284,7 @@ void app_main(void)
     uint8_t data[len];
 
     while (1) {
-        snprintf(data, len, "%d", current_message_id);
+        snprintf((char *) data, len, "%d", current_message_id);
         send_data_once_blocking(data, len, current_message_id);
         current_message_id++;
         vTaskDelay(200);
