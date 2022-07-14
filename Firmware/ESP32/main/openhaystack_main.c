@@ -125,7 +125,7 @@ int is_valid_pubkey(uint8_t *pub_key_compressed) {
    memcpy(&with_sign_byte[1], pub_key_compressed, 28);
    uECC_decompress(with_sign_byte, pub_key_uncompressed, curve);
    if(!uECC_valid_public_key(pub_key_uncompressed, curve)) {
-       ESP_LOGW(LOG_TAG, "Generated public key tested as invalid");
+       //ESP_LOGW(LOG_TAG, "Generated public key tested as invalid");
        return 0;
    }
    return 1;
@@ -175,7 +175,7 @@ void set_addr_and_payload_for_bit(uint32_t index, uint32_t msg_id, uint8_t bit) 
         // here, you could call `pub_from_priv(public_key, private_key)` to instead treat the payload as private key
 	    valid_key_counter++; // for next round
     } while (!is_valid_pubkey(public_key));
-    ESP_LOGI(LOG_TAG, "  pub key to use (%d. try): %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x ... %02x", valid_key_counter, public_key[0], public_key[1], public_key[2], public_key[3], public_key[4], public_key[5], public_key[6], public_key[7], public_key[8], public_key[9], public_key[10], public_key[11], public_key[12], public_key[13],public_key[14], public_key[15],public_key[16],public_key[17],public_key[19], public_key[19], public_key[20], public_key[21], public_key[22], public_key[23], public_key[24], public_key[25], public_key[26],  public_key[27]);
+    //ESP_LOGI(LOG_TAG, "  pub key to use (%d. try): %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x ... %02x", valid_key_counter, public_key[0], public_key[1], public_key[2], public_key[3], public_key[4], public_key[5], public_key[6], public_key[7], public_key[8], public_key[9], public_key[10], public_key[11], public_key[12], public_key[13],public_key[14], public_key[15],public_key[16],public_key[17],public_key[19], public_key[19], public_key[20], public_key[21], public_key[22], public_key[23], public_key[24], public_key[25], public_key[26],  public_key[27]);
     set_addr_from_key(rnd_addr, public_key);
     set_payload_from_key(adv_data, public_key);
 }
@@ -209,9 +209,9 @@ void send_data_once_blocking(uint8_t* data_to_send, uint32_t len, uint32_t msg_i
             else {
                 current_bit = 0;
             }
-            ESP_LOGD(LOG_TAG, "  Sending byte %d, bit %d: %d", by_i, bi_i, current_bit);
+            //ESP_LOGD(LOG_TAG, "  Sending byte %d, bit %d: %d", by_i, bi_i, current_bit);
             set_addr_and_payload_for_bit(by_i*8+bi_i, msg_id, current_bit);
-            ESP_LOGD(LOG_TAG, "    resetting. Will now use device address: %02x %02x %02x %02x %02x %02x", rnd_addr[0], rnd_addr[1], rnd_addr[2], rnd_addr[3], rnd_addr[4], rnd_addr[5]);
+            //ESP_LOGD(LOG_TAG, "    resetting. Will now use device address: %02x %02x %02x %02x %02x %02x", rnd_addr[0], rnd_addr[1], rnd_addr[2], rnd_addr[3], rnd_addr[4], rnd_addr[5]);
             reset_advertising();
             vTaskDelay(2);
         }
