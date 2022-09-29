@@ -50,7 +50,7 @@ class FindMyController: ObservableObject {
 
        var m = self.messages[messageID]!
         for bit in startBit..<startBit+bitCount {
-            for v in 0...1 {
+            for v in 0...255 {
                 var validKeyCounter: UInt32 = 0
                 var adv_key = [UInt8]()
                 repeat {
