@@ -161,7 +161,7 @@ void copy_4b_big_endian(uint8_t *dst, uint8_t *src) {
 // index as first part of payload to have an often changing MAC address
 // [2b magic] [4byte index] [4byte msg_id] [4byte modem_id] [000.000] [1bit]
 // There is a rade-off between sending and receiving throughput (e.g. we could also use a 1-byte lookup table)
-void set_addr_and_payload_for_bit(uint32_t index, uint32_t msg_id, uint8_t bit) {
+void set_addr_and_payload_for_byte(uint32_t index, uint32_t msg_id, uint8_t byte) {
     uint32_t valid_key_counter = 0;
     static uint8_t public_key[28] = {0};
     public_key[0] = 0xBA; // magic value
@@ -169,7 +169,7 @@ void set_addr_and_payload_for_bit(uint32_t index, uint32_t msg_id, uint8_t bit) 
     copy_4b_big_endian(&public_key[2], &index);
     copy_4b_big_endian(&public_key[6], &msg_id);
     copy_4b_big_endian(&public_key[10], &modem_id);
-    public_key[27] = bit;
+    public_key[27] = byte;
     do {
         copy_4b_big_endian(&public_key[14], &valid_key_counter);
         // here, you could call `pub_from_priv(public_key, private_key)` to instead treat the payload as private key
@@ -197,24 +197,14 @@ void reset_advertising() {
 void send_data_once_blocking(uint8_t* data_to_send, uint32_t len, uint32_t msg_id) {
     ESP_LOGI(LOG_TAG, "Data to send (msg_id: %d): %s", msg_id, data_to_send);
 
-    uint8_t current_bit = 0;
     // iterate byte-by-byte
     for(int by_i = 0; by_i < len; by_i++) {
         ESP_LOGI(LOG_TAG, "  Sending byte %d/%d (0x%02x)", by_i, len-1, data_to_send[by_i]);
-        // iterate bit-by-bit
-        for(int bi_i = 0; bi_i < 8; bi_i++) {
-            if (CHECK_BIT(data_to_send[by_i], bi_i)) {
-                current_bit = 1;
-            }
-            else {
-                current_bit = 0;
-            }
-            ESP_LOGD(LOG_TAG, "  Sending byte %d, bit %d: %d", by_i, bi_i, current_bit);
-            set_addr_and_payload_for_bit(by_i*8+bi_i, msg_id, current_bit);
-            ESP_LOGD(LOG_TAG, "    resetting. Will now use device address: %02x %02x %02x %02x %02x %02x", rnd_addr[0], rnd_addr[1], rnd_addr[2], rnd_addr[3], rnd_addr[4], rnd_addr[5]);
-            reset_advertising();
-            vTaskDelay(2);
-        }
+        
+        set_addr_and_payload_for_byte(by_i, msg_id, data_to_send[by_i]);
+        ESP_LOGD(LOG_TAG, "    resetting. Will now use device address: %02x %02x %02x %02x %02x %02x", rnd_addr[0], rnd_addr[1], rnd_addr[2], rnd_addr[3], rnd_addr[4], rnd_addr[5]);
+        reset_advertising();
+        vTaskDelay(2);
     }
     esp_ble_gap_stop_advertising();
 }
@@ -277,16 +267,16 @@ void app_main(void)
     ESP_LOGI(LOG_TAG, "Entering serial modem mode");
     init_serial();
 
-    // UART test line
-    uart_write_bytes(UART_PORT_NUM, (const char *) "Serial activated. Waiting for text lines.\n", 42);
-
-    int len = 12;
-    uint8_t data[len];
+    uint32_t len = 10;
+    uint8_t data[] = "HELLOWORLD";
 
     while (1) {
-        snprintf((char *) data, len, "%d", current_message_id);
-        send_data_once_blocking(data, len, current_message_id);
-        current_message_id++;
+    
+        // For LoRa counter:
+        //snprintf((char *) data, len, "%d", (int)current_message_id);
+        //current_message_id++;
+        
+        send_data_once_blocking(data, sizeof(data), current_message_id);
         vTaskDelay(300);
     }
     esp_ble_gap_stop_advertising();
