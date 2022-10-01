@@ -170,43 +170,22 @@ class FindMyController: ObservableObject {
         result[k.index] = k.bitValue
           print("Bit \(k.index): \(k.bitValue) (\(count))")
       }
-      var resultBitStr = ""
       var resultByteStr = ""
-      var byte_valid = 1
-      var byte_completely_invalid = 1
       if result.keys.max() == nil { print("No reports found"); completion(nil); return }
       for i in 0..<message!.fetchedBits {
           let v = result[i]
           if v == nil {
-              byte_valid = 0
-              resultBitStr += "?"
+              resultByteStr += "?"
+              // this might not be the best way to do it, as it doesn't allow for a single missed byte. But otherwise i don't know how to detect end byte
+              earlyExit = true
+              break
           } else {
-              byte_completely_invalid = 0
-              resultBitStr += String(v!)
-          }
-          let (quotient, remainder) = i.quotientAndRemainder(dividingBy: 8)
-          if (remainder == 7) { // End of byte
-            if byte_completely_invalid == 1 {
-                earlyExit = true
-                break
-            }
-            if byte_valid == 1 {
-              print("Fetched a full byte")
-              let valid_byte = UInt8(strtoul(String(resultBitStr[resultBitStr.index(resultBitStr.startIndex, offsetBy: String.IndexDistance(quotient*8))...resultBitStr.index(resultBitStr.startIndex, offsetBy: String.IndexDistance(quotient*8+7))]), nil, 2))
-              print("Full byte \(valid_byte)")
+              valid_byte = String(v!)
               let str_byte = String(bytes: [valid_byte], encoding: .utf8)
               resultByteStr += str_byte ?? "?"
-            }
-            else {
-              print("No full byte")
-              resultByteStr += "?"
-            }
-            byte_valid = 1
-            byte_completely_invalid = 1
           }
       }
       
-      print("Result bitstring: \(resultBitStr)")
       print("Result bytestring: \(resultByteStr)")
       message?.decodedStr = resultByteStr
       self.messages[messageID] = message
