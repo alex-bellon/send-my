@@ -2,6 +2,6 @@
 <Workspace
    version = "1.0">
    <FileRef
-      location = "self:/Users/Fabian/Downloads/openhaystack-main-2/CVE-2020-9986/OFReadKeys/DataFetcher.xcodeproj">
+      location = "self:">
    </FileRef>
 </Workspace>

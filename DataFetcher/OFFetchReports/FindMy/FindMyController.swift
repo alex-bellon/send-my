@@ -176,12 +176,14 @@ class FindMyController: ObservableObject {
           let v = result[i]
           if v == nil {
               resultByteStr += "?"
+//              var valid_byte = 1
               // this might not be the best way to do it, as it doesn't allow for a single missed byte. But otherwise i don't know how to detect end byte
               earlyExit = true
               break
           } else {
-              valid_byte = String(v!)
-              let str_byte = String(bytes: [valid_byte], encoding: .utf8)
+              let valid_byte = String(v!)
+//              let str_byte = String(bytes: valid_byte, encoding: .utf8)
+              let str_byte = valid_byte
               resultByteStr += str_byte ?? "?"
           }
       }
