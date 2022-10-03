@@ -30,19 +30,24 @@ struct OFFetchReportsMainView: View {
   var modemIDView: some View {
     VStack {
       Spacer()
-      Text("Please insert the modem id that you want to fetch data for:")
+      Text("Please insert the modem id that you want to fetch data for, and the chunk length:")
         HStack {
         Spacer()
-        TextField("4 byte hex string, e.g. DE AD BE EF", text: self.$modemIDString).frame(width: 250)
-        
+        TextField("4 byte hex string, e.g. DE AD BE EF", text: self.$modemIDString).frame(width: 250) 
+        Spacer()
+        TextField("Length of chunk in bits (1-8)", text: self.$chunkLengthString).frame(width: 250)
+       
       Button(
         action: {
             guard let parsedModemID = UInt32(self.modemIDString.replacingOccurrences(of: " ", with: "", options: NSString.CompareOptions.literal, range: nil), radix: 16) else { return }
+            guard let parsedChunkLength = UInt32(self.chunkLengthString.replacingOccurrences(of: " ", with: "", options: NSString.CompareOptions.literal, range: nil), radix: 10) else { return }
             
             self.modemID = parsedModemID
+            self.chunkLength = parsedChunkLength
             print("Parsed Modem ID: \(parsedModemID); " + String(parsedModemID, radix: 16))
+            print("Parsed Modem ID: \(parsedChunkLength); " + String(parsedChunkLength, radix: 10))
             self.findMyController.clearMessages()
-            self.loadMessage(modemID: parsedModemID, messageID: UInt32(0))
+            self.loadMessage(modemID: parsedModemID, messageID: UInt32(0), chunkLength: parsedChunkLength)
         },
         label: {
           Text("Download data")
@@ -170,7 +175,7 @@ struct OFFetchReportsMainView: View {
                 }
                 print("Fetching data")
                 print(token)
-                self.downloadAndDecodeData(modemID: modemID, messageID: UInt32(0), searchPartyToken: token)
+                self.downloadAndDecodeData(modemID: modemID, messageID: UInt32(0), chunkLength: UInt32(8), searchPartyToken: token)
 
             }
         }
@@ -178,11 +183,12 @@ struct OFFetchReportsMainView: View {
   }
 
   // swiftlint:disable identifier_name
-  func loadMessage(modemID: UInt32, messageID: UInt32) -> Bool {
+  func loadMessage(modemID: UInt32, messageID: UInt32, chunkLength: UInt32) -> Bool {
         self.messageIDToFetch = messageID
         print("Retrieving data")
         print(modemID)
         print(messageID)
+        print(chunkLength)
         
             AnisetteDataManager.shared.requestAnisetteData { result in
             switch result {
@@ -198,18 +204,18 @@ struct OFFetchReportsMainView: View {
                 }
                 print("Fetching data")
                 print(token)
-                self.downloadAndDecodeData(modemID: modemID, messageID: messageID, searchPartyToken: token)
+                self.downloadAndDecodeData(modemID: modemID, messageID: messageID, chunkLength: chunkLength, searchPartyToken: token)
 
             }
         }
     return true
   }
 
-  func downloadAndDecodeData(modemID: UInt32, messageID: UInt32, searchPartyToken: Data) {
+  func downloadAndDecodeData(modemID: UInt32, messageID: UInt32, chunkLength: UInt32, searchPartyToken: Data) {
     self.loading = true
 
     self.findMyController.fetchMessage(
-      for: modemID, message: messageID, with: searchPartyToken,
+      for: modemID, message: messageID, chunk: chunkLength, with: searchPartyToken,
       completion: { error in
         // Check if an error occurred
         guard error == nil else {

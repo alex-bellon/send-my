@@ -219,7 +219,7 @@ struct Message: Codable {
   let modemID: UInt32
   let messageID: UInt32
 
-  var fetchedBits = UInt32()
+  var fetchedChunks = UInt32()
 
   var keys = [DataEncodingKey]()
 
@@ -234,7 +234,7 @@ struct Message: Codable {
 
 struct DataEncodingKey: Codable, Hashable {
   let index: UInt32
-  var bitValue: UInt8
+  var value: UInt8
   /// The advertising key
   var advertisedKey: [UInt8]
   /// Hashed advertisement key using SHA256
