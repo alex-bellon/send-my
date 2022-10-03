@@ -23,6 +23,8 @@ struct OFFetchReportsMainView: View {
   @State var searchPartyTokenString: String = ""
   @State var modemID: UInt32 = 0
   @State var modemIDString: String = ""
+  @State var chunkLength: UInt32 = 0
+  @State var chunkLengthString: String = ""
   @State var keyPlistFile: Data?
 
   @State var showModemPrompt = false
@@ -67,7 +69,7 @@ struct OFFetchReportsMainView: View {
     }
   }
 
-  var dataView: some View {
+var dataView: some View {
     VStack {
            HStack {
                // Text("Result")
@@ -91,7 +93,7 @@ struct OFFetchReportsMainView: View {
               Spacer()
                   Button(
                     action: {
-                        self.loadMessage(modemID: self.modemID, messageID: self.findMyController.messages[UInt32(i)]!.messageID)
+                        self.loadMessage(modemID: self.modemID, messageID: self.findMyController.messages[UInt32(i)]!.messageID, chunkLength: self.chunkLength)
                     },
                     label: {
                       Text("Reload message")
@@ -101,7 +103,7 @@ struct OFFetchReportsMainView: View {
                 
                Button(
                     action: {
-                        self.loadMessage(modemID: self.modemID, messageID: UInt32(i))
+                        self.loadMessage(modemID: self.modemID, messageID: UInt32(i), chunkLength: self.chunkLength)
                     },
                     label: {
                       Text("Load message #\(i)")
@@ -110,8 +112,8 @@ struct OFFetchReportsMainView: View {
                
             
            }
-        } 
-     } 
+        }
+     }
   }
 
   // This view is shown if the search party token cannot be accessed from keychain

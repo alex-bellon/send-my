@@ -218,6 +218,7 @@ struct Message: Codable {
 
   let modemID: UInt32
   let messageID: UInt32
+  let chunkLength: UInt32
 
   var fetchedChunks = UInt32()
 
