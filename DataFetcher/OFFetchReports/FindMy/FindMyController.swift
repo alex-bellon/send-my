@@ -36,7 +36,6 @@ class FindMyController: ObservableObject {
 
   @Published var modemID: UInt32 = 0
   @Published var chunkLength: UInt32 = 8
-  @Published var batch_size: UInt32 = 128
 
   @Published var startKey: [UInt8] = [0x7a, 0x6a, 0x10, 0x26, 0x7a, 0x6a, 0x10, 0x26, 0x7a, 0x6a, 0x10, 0x26, 0x7a, 0x6a, 0x10, 0x26, 0x7a, 0x6a, 0x10, 0x26]
 
@@ -78,35 +77,35 @@ class FindMyController: ObservableObject {
 
 
   func fetchBitsUntilEnd(
-    for modemID: UInt32, message messageID: UInt32, startChunk: UInt32, chunkCount: UInt32, with searchPartyToken: Data, completion: @escaping (Error?) -> Void
+    for modemID: UInt32, message messageID: UInt32, startChunk: UInt32, with searchPartyToken: Data, completion: @escaping (Error?) -> Void
     ) {
     
     let static_prefix: [UInt8] = [0xba, 0xbe]
 
     var m = self.messages[messageID]!
     let chunkLength = m.chunkLength
-    let decoded: [UInt8] = m.decodedMessage!
+    let decoded: [UInt8] = m.decodedBytes!
     let recovered: [UInt8] = xorArrays(a: startKey, b: decoded)
     let adv_key_prefix = static_prefix + byteArray(from: m.modemID)
 
-    for chunk in startChunk..<startChunk+chunkCount {
-      for val in 0..<Int(pow(Double(2), Double(chunkLength))) {
-        var validKeyCounter: UInt16 = 0
-        var adv_key = adv_key_prefix
-        var offsetVal = byteArray(from: val << (chunkLength * chunk))
-        repeat {
-          adv_key += byteArray(from: validKeyCounter) + xorArrays(a: recovered, b: offsetVal)
-          validKeyCounter += 1
-          print("==== Testing key")
-        } while (BoringSSL.isPublicKeyValid(Data(adv_key)) == 0)
+    for val in 0..<Int(pow(Double(2), Double(chunkLength))) {
+      var validKeyCounter: UInt16 = 0
+      var adv_key = adv_key_prefix
+      var offsetVal = byteArray(from: val << (chunkLength * chunk))
 
-        print("Found valid pub key on \(validKeyCounter). try")
-        let k = DataEncodingKey(index: UInt32(chunk), value: UInt8(val), advertisedKey: adv_key, hashedKey: SHA256.hash(data: adv_key).data)
-        m.keys.append(k)
-        print(Data(adv_key).base64EncodedString())
-      }
+      repeat {
+        adv_key += byteArray(from: validKeyCounter) + xorArrays(a: recovered, b: offsetVal)
+        validKeyCounter += 1
+        print("==== Testing key")
+      } while (BoringSSL.isPublicKeyValid(Data(adv_key)) == 0)
+
+      print("Found valid pub key on \(validKeyCounter). try")
+      let k = DataEncodingKey(index: UInt32(chunk), value: UInt8(val), advertisedKey: adv_key, hashedKey: SHA256.hash(data: adv_key).data)
+      m.keys.append(k)
+      print(Data(adv_key).base64EncodedString())
     }
-    m.fetchedChunks = startChunk + chunkCount
+
+    m.fetchedChunks += 1
     self.messages[UInt32(messageID)] = m
     // Includes async fetch if finished, otherwise fetches more bits
     self.fetchReports(for: messageID, with: searchPartyToken, completion: completion)
@@ -123,7 +122,7 @@ class FindMyController: ObservableObject {
         let m = Message(modemID: modemID, messageID: UInt32(messageID), chunkLength: chunkLength)
     self.messages[messageID] = m
  
-    fetchBitsUntilEnd(for: modemID, message: messageID, startChunk: start_index, chunkCount: self.batch_size, with: searchPartyToken, completion: completion);
+    fetchBitsUntilEnd(for: modemID, message: messageID, startChunk: start_index, with: searchPartyToken, completion: completion);
   }
 
 
@@ -132,14 +131,11 @@ class FindMyController: ObservableObject {
 
     DispatchQueue.global(qos: .background).async {
       let fetchReportGroup = DispatchGroup()
-
       let fetcher = ReportsFetcher()
-    
 
         fetchReportGroup.enter()
 
         let keys = self.messages[messageID]!.keys
-
         let keyHashes = keys.map({ $0.hashedKey.base64EncodedString() })
 
         // 21 days reduced to 1 day
@@ -213,47 +209,54 @@ class FindMyController: ObservableObject {
         result[k.index] = k.value
           print("Bit \(k.index): \(k.value) (\(count))")
       }
-      var resultBitStr = ""
-      var resultByteStr = ""
+      
+      var workingBitStr = message!.workingBitStr
+      var decodedBits = message!.decodedBits
+      var decodedStr = message!.decodedStr
       var chunk_valid = 1
       var chunk_completely_invalid = 1
       if result.keys.max() == nil { print("No reports found"); completion(nil); return }
-      for i in 0..<message!.fetchedChunks {
-        let val = result[i]!
-          if val == nil {
-              chunk_valid = 0
-              resultBitStr += "?"
-          } else {
-              chunk_completely_invalid = 0
-              var bitStr = String(val, radix: 2)
-              var bitStrPadded = pad(string: bitStr, toSize: Int(chunkLength))
-              resultBitStr += bitStrPadded
-          }
-          let (quotient, remainder) = resultBitStr.count.quotientAndRemainder(dividingBy: 8)
-          if (remainder == 7) { // End of byte
-            if chunk_completely_invalid == 1 {
-                earlyExit = true
-                break
-            }
-            if chunk_valid == 1 {
-              print("Fetched a full byte")
-                let valid_byte = UInt8(strtoul(String(resultBitStr.prefix(8)), nil, 2))
-                resultBitStr = String(resultBitStr.dropFirst(8))
-              print("Full byte \(valid_byte)")
-              let str_byte = String(bytes: [valid_byte], encoding: .utf8)
-              resultByteStr += str_byte ?? "?"
-            }
-            else {
-              print("No full byte")
-              resultByteStr += "?"
-            }
-            chunk_valid = 1
-            chunk_completely_invalid = 1
-          }
+      let val = result[message!.fetchedChunks]!
+      if val == nil {
+          chunk_valid = 0
+          workingBitStr += "?"
+      } else {
+          chunk_completely_invalid = 0
+          var bitStr = String(val, radix: 2)
+          var bitStrPadded = pad(string: bitStr, toSize: Int(chunkLength))
+          workingBitStr += bitStrPadded
+          decodedBits = bitStr + decodedBits
+          
+      }
+      let (quotient, remainder) = resultBitStr.count.quotientAndRemainder(dividingBy: 8)
+      if (remainder == 7) { // End of byte
+        if chunk_completely_invalid == 1 {
+          earlyExit = true
+          break
+        }
+        if chunk_valid == 1 {
+          print("Fetched a full byte")
+          let valid_byte = UInt8(strtoul(String(workingBitStr.prefix(8)), nil, 2))
+          workingBitStr = String(workingBitStr.dropFirst(8))
+          print("Full byte \(valid_byte)")
+          let str_byte = String(bytes: [valid_byte], encoding: .utf8)
+          decodedStr += str_byte ?? "?"
+        }
+        else {
+          print("No full byte")
+          decodedStr += "?"
+        }
+        chunk_valid = 1
+        chunk_completely_invalid = 1
       }
       
-      print("Result bytestring: \(resultByteStr)")
-      message?.decodedStr = resultByteStr
+      message?.workingBitStr = workingBitStr
+      message?.decodedBits = decodedBits
+      message?.decodedBytes = byteArray(Int(strtoul(decodedBits, nil, 2)))
+      message?.decodedStr = decodedStr
+
+      print("Result bytestring: \(decodedStr)")
+
       self.messages[messageID] = message
       if earlyExit {
           print("Fetched a fully invalid byte. Message probably ended.")
@@ -262,7 +265,7 @@ class FindMyController: ObservableObject {
       }
       // Not finished yet -> Next round
       print("Haven't found end byte yet. Starting with bit \(result.keys.max) now")
-      fetchBitsUntilEnd(for: modemID, message: messageID, startChunk: UInt32(result.keys.max()!), chunkCount: self.batch_size, with: searchPartyToken, completion: completion); // remove bitCount magic value   
+      fetchBitsUntilEnd(for: modemID, message: messageID, startChunk: UInt32(result.keys.max()!), with: searchPartyToken, completion: completion); // remove bitCount magic value   
    }
 }
 

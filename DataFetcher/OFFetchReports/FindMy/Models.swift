@@ -224,10 +224,14 @@ struct Message: Codable {
 
   var keys = [DataEncodingKey]()
 
+  var workingBitStr = String?
+  var workingByteStr = String?
+
   /// KeyHash: Report results
   var reports = [FindMyReport]()
 
-  var decodedMessage: [UInt8]?
+  var decodedBits: String?
+  var decodedBytes: [UInt8]?
   var decodedStr: String?
 }
 
