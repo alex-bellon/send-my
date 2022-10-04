@@ -91,7 +91,7 @@ class FindMyController: ObservableObject {
     for val in 0..<Int(pow(Double(2), Double(chunkLength))) {
       var validKeyCounter: UInt16 = 0
       var adv_key = adv_key_prefix
-      var offsetVal = byteArray(from: val << (chunkLength * chunk))
+      var offsetVal = byteArray(from: val << (chunkLength * startChunk))
 
       repeat {
         adv_key += byteArray(from: validKeyCounter) + xorArrays(a: recovered, b: offsetVal)
@@ -100,7 +100,7 @@ class FindMyController: ObservableObject {
       } while (BoringSSL.isPublicKeyValid(Data(adv_key)) == 0)
 
       print("Found valid pub key on \(validKeyCounter). try")
-      let k = DataEncodingKey(index: UInt32(chunk), value: UInt8(val), advertisedKey: adv_key, hashedKey: SHA256.hash(data: adv_key).data)
+      let k = DataEncodingKey(index: UInt32(startChunk), value: UInt8(val), advertisedKey: adv_key, hashedKey: SHA256.hash(data: adv_key).data)
       m.keys.append(k)
       print(Data(adv_key).base64EncodedString())
     }
@@ -210,9 +210,9 @@ class FindMyController: ObservableObject {
           print("Bit \(k.index): \(k.value) (\(count))")
       }
       
-      var workingBitStr = message!.workingBitStr
-      var decodedBits = message!.decodedBits
-      var decodedStr = message!.decodedStr
+      var workingBitStr = message!.workingBitStr!
+      var decodedBits = message!.decodedBits!
+      var decodedStr = message!.decodedStr!
       var chunk_valid = 1
       var chunk_completely_invalid = 1
       if result.keys.max() == nil { print("No reports found"); completion(nil); return }
@@ -228,11 +228,10 @@ class FindMyController: ObservableObject {
           decodedBits = bitStr + decodedBits
           
       }
-      let (quotient, remainder) = resultBitStr.count.quotientAndRemainder(dividingBy: 8)
+      let (quotient, remainder) = workingBitStr.count.quotientAndRemainder(dividingBy: 8)
       if (remainder == 7) { // End of byte
         if chunk_completely_invalid == 1 {
           earlyExit = true
-          break
         }
         if chunk_valid == 1 {
           print("Fetched a full byte")
@@ -252,7 +251,7 @@ class FindMyController: ObservableObject {
       
       message?.workingBitStr = workingBitStr
       message?.decodedBits = decodedBits
-      message?.decodedBytes = byteArray(Int(strtoul(decodedBits, nil, 2)))
+      message?.decodedBytes = byteArray(from: Int(strtoul(decodedBits, nil, 2)))
       message?.decodedStr = decodedStr
 
       print("Result bytestring: \(decodedStr)")
