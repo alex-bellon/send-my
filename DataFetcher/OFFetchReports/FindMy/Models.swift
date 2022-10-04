@@ -225,7 +225,6 @@ struct Message: Codable {
   var keys = [DataEncodingKey]()
 
   var workingBitStr = String?
-  var workingByteStr = String?
 
   /// KeyHash: Report results
   var reports = [FindMyReport]()
