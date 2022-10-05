@@ -85,12 +85,11 @@ class FindMyController: ObservableObject {
     var m = self.messages[messageID]!
     let chunkLength = m.chunkLength
     let decoded: [UInt8]
-    if m.decodedBytes != nil{
+    if m.decodedBytes! != nil{
         decoded = m.decodedBytes!
-    } else{
+    } else {
         decoded = [0]
     }
-//    let decoded: [UInt8] = m.decodedBytes!
     let recovered: [UInt8] = xorArrays(a: startKey, b: decoded)
     let adv_key_prefix = static_prefix + byteArray(from: m.modemID)
 
