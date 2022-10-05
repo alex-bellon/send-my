@@ -47,21 +47,25 @@ class FindMyController: ObservableObject {
     var result = [UInt8]()
     if (a.count == b.count) {
       for i in 0..<a.count {
-        result[i] = a[i] ^ b[i]
+          result.append(a[i] ^ b[i])
       }
     } else if (a.count < b.count) {
       for i in 0..<a.count {
-        result[i] = a[i] ^ b[i]
+          result.append(a[i] ^ b[i])
       }
       for i in a.count..<b.count {
-        result[i] = b[i]
+          result.append(b[i])
       }
     } else if (a.count > b.count) {
       for i in 0..<b.count {
-        result[i] = a[i] ^ b[i]
+//        print("a: \(a[i])")
+//        print("b: \(b[i])")
+//        print("i: \(i)")
+//        print("result: \(result[i])")
+          result.append(a[i] ^ b[i])
       }
       for i in b.count..<a.count {
-        result[i] = a[i]
+          result.append(a[i])
       }
     }
     return result
