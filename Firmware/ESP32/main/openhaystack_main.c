@@ -224,28 +224,36 @@ void send_data_once_blocking(uint8_t* data_to_send, uint32_t len, uint32_t chunk
     ESP_LOGI(LOG_TAG, "Data to send (msg_id: %d): %s", msg_id, data_to_send);
 
     int num_chunks = ((len * 8) / chunk_len);
-    int remain = 8 - ((len * 8) % chunk_len);
-    if (remain) { num_chunks++; }
+    if ((len * 8) % chunk_len) { num_chunks++; }
     
     uint8_t mask = 0xff >> (8 - chunk_len);
 
+    uint8_t* data = data_to_send;
     for (int chunk_i = 0; chunk_i < num_chunks; chunk_i++) {
-        uint8_t val;
+        uint8_t val = 0;
 
         uint32_t offset = chunk_i * chunk_len;
         uint32_t remain = offset % 8;
+
+        bool overlap = ((chunk_len * (chunk_i + 1)) / 8) != ((chunk_len * chunk_i) / 8);
     
-        ESP_LOGI(LOG_TAG, "  data: %02x ", data_to_send);
-        ESP_LOGI(LOG_TAG, "offset: %02x ", offset);
-        ESP_LOGI(LOG_TAG, "remain: %02x ", remain);
-        if (remain >= chunk_len) {
-            val = data_to_send[(offset/8)] >> (remain - chunk_len);
-            val ^= mask;
+        //for (int i = 0; i < len; i++) {
+        //  ESP_LOGI(LOG_TAG, "data %d: %02x ", i, data_to_send[i]);  
+        //} 
+        //ESP_LOGI(LOG_TAG, "  mask: %02x ", mask);
+        //ESP_LOGI(LOG_TAG, "offset: %02x ", offset);
+        //ESP_LOGI(LOG_TAG, "remain: %02x ", remain);
+        if (!overlap) {
+            val = data_to_send[len - (offset/8)] >> remain;
+            ESP_LOGI(LOG_TAG, "valraw: %02x ", val);
+            val &= mask;
         } else { 
-            uint8_t val_lo = data_to_send[(offset/8)] >> (8 - (chunk_len - remain));
-            val_lo ^= mask;
-            uint8_t val_hi = data_to_send[(offset/8) + 1] >> (chunk_len - remain);
-            val_hi ^= mask; 
+            uint8_t val_lo = data_to_send[len - (offset/8)] >> remain;
+            val_lo &= mask;
+            uint8_t val_hi = data_to_send[len - (offset/8) + 1] << remain;
+            val_hi &= mask; 
+            ESP_LOGI(LOG_TAG, " vallo: %02x ", val_lo);
+            ESP_LOGI(LOG_TAG, " valhi: %02x ", val_hi);
             val = val_lo ^ val_hi;
         }
         ESP_LOGI(LOG_TAG, "   val: %02x ", val);
