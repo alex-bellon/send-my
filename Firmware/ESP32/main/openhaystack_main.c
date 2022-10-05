@@ -58,13 +58,15 @@ static uint8_t adv_data[31] = {
     0x00, /* Hint (0x00) */
 };
 
-uint8_t curr_addr[20] = {
-    0x7a, 0x6a, 0x10, 0x26, 
-    0x7a, 0x6a, 0x10, 0x26, 
-    0x7a, 0x6a, 0x10, 0x26, 
-    0x7a, 0x6a, 0x10, 0x26, 
-    0x7a, 0x6a, 0x10, 0x26 
+uint8_t start_addr[20] = {
+    0x00, 0x00, 0x00, 0x00, 
+    0x00, 0x00, 0x00, 0x00, 
+    0x00, 0x00, 0x00, 0x00, 
+    0x00, 0x00, 0x00, 0x00, 
+    0x00, 0x00, 0x00, 0x00 
 };
+
+uint8_t curr_addr[20];  
 
 uint32_t swap_uint32( uint32_t val )
 {
@@ -180,19 +182,26 @@ void set_addr_and_payload_for_byte(uint32_t index, uint32_t msg_id, uint8_t val,
     copy_4b_big_endian(&public_key[2], &modem_id);
     public_key[6] = 0x00;
     public_key[7] = 0x00;
-    memcpy(&public_key[8], &curr_addr, 20);
+    if (index) {
+        memcpy(&public_key[8], &curr_addr, 20);
+    } else {
+        memcpy(&public_key[8], &start_addr, 20);
+    }
 
-    uint32_t offset = (chunk_len * index) % (8 *chunk_len * (20 / chunk_len)); // mod the offset correctly
+    uint32_t offset = (chunk_len * (index + 1)) % (8 * chunk_len * (20 / chunk_len)); // mod the offset correctly
     uint32_t remain = 8 - ((chunk_len * index) % 8);
     
-    if (remain >= chunk_len) {
-        uint8_t xor_val = val << (remain - chunk_len);
-        public_key[27 - ((offset/8) + 1)] ^= xor_val;
+    if (remain == chunk_len) {
+        uint8_t xor_val = val << (8 - remain);
+        public_key[28 - (offset/8)] ^= xor_val;
+    } else if (remain > chunk_len) {
+        uint8_t xor_val = val << (8 - remain);
+        public_key[28 - ((offset/8) + 1)] ^= xor_val;
     } else { 
-        uint8_t xor_val_lo = val << (8 - (chunk_len - remain));
+        uint8_t xor_val_lo = val << (8 - remain);
         uint8_t xor_val_hi = val >> (chunk_len - remain);
-        public_key[27 - ((offset/8))] ^= xor_val_lo;
-        public_key[27 - ((offset/8) + 1)] ^= xor_val_hi;
+        public_key[28 - ((offset/8))] ^= xor_val_lo;
+        public_key[28 - ((offset/8) + 1)] ^= xor_val_hi;
     }
 
     memcpy(&curr_addr, &public_key[8], 20);
@@ -201,7 +210,9 @@ void set_addr_and_payload_for_byte(uint32_t index, uint32_t msg_id, uint8_t val,
       copy_2b_big_endian(&public_key[6], &valid_key_counter);
 	    valid_key_counter++;
     } while (!is_valid_pubkey(public_key));
-    ESP_LOGI(LOG_TAG, "  pub key to use (%d. try): %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x", valid_key_counter, public_key[0], public_key[1], public_key[2], public_key[3], public_key[4], public_key[5], public_key[6], public_key[7], public_key[8], public_key[9], public_key[10], public_key[11], public_key[12], public_key[13],public_key[14], public_key[15],public_key[16],public_key[17],public_key[19], public_key[19], public_key[20], public_key[21], public_key[22], public_key[23], public_key[24], public_key[25], public_key[26],  public_key[27]);
+
+    ESP_LOGI(LOG_TAG, "  pub key to use (%d. try): %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x", valid_key_counter, public_key[0], public_key[1], public_key[2], public_key[3], public_key[4], public_key[5], public_key[6], public_key[7], public_key[8], public_key[9], public_key[10], public_key[11], public_key[12], public_key[13],public_key[14], public_key[15],public_key[16],public_key[17],public_key[18], public_key[19], public_key[20], public_key[21], public_key[22], public_key[23], public_key[24], public_key[25], public_key[26],  public_key[27]);
+
     set_addr_from_key(rnd_addr, public_key);
     set_payload_from_key(adv_data, public_key);
 }
@@ -229,6 +240,8 @@ void send_data_once_blocking(uint8_t* data_to_send, uint32_t len, uint32_t chunk
     uint8_t mask = 0xff >> (8 - chunk_len);
 
     uint8_t* data = data_to_send;
+    uint32_t end = len - 1;   
+
     for (int chunk_i = 0; chunk_i < num_chunks; chunk_i++) {
         uint8_t val = 0;
 
@@ -237,28 +250,17 @@ void send_data_once_blocking(uint8_t* data_to_send, uint32_t len, uint32_t chunk
 
         bool overlap = ((chunk_len * (chunk_i + 1)) / 8) != ((chunk_len * chunk_i) / 8);
     
-        //for (int i = 0; i < len; i++) {
-        //  ESP_LOGI(LOG_TAG, "data %d: %02x ", i, data_to_send[i]);  
-        //} 
-        //ESP_LOGI(LOG_TAG, "  mask: %02x ", mask);
-        //ESP_LOGI(LOG_TAG, "offset: %02x ", offset);
-        //ESP_LOGI(LOG_TAG, "remain: %02x ", remain);
         if (!overlap) {
-            val = data_to_send[len - (offset/8)] >> remain;
-            ESP_LOGI(LOG_TAG, "valraw: %02x ", val);
+            val = data_to_send[end - (offset/8)] >> remain;
             val &= mask;
         } else { 
-            uint8_t val_lo = data_to_send[len - (offset/8)] >> remain;
+            uint8_t val_lo = data_to_send[end - (offset/8)] >> remain;
             val_lo &= mask;
-            uint8_t val_hi = data_to_send[len - (offset/8) + 1] << remain;
+            uint8_t val_hi = data_to_send[end - (offset/8) + 1] << remain;
             val_hi &= mask; 
-            ESP_LOGI(LOG_TAG, " vallo: %02x ", val_lo);
-            ESP_LOGI(LOG_TAG, " valhi: %02x ", val_hi);
             val = val_lo ^ val_hi;
         }
-        ESP_LOGI(LOG_TAG, "   val: %02x ", val);
 
-        //ESP_LOGI(LOG_TAG, "  Sending chunk %d/%d (0x%02x)", chunk_i, num_chunks, val); 
         set_addr_and_payload_for_byte(chunk_i, msg_id, val, chunk_len);
         ESP_LOGD(LOG_TAG, "    resetting. Will now use device address: %02x %02x %02x %02x %02x %02x", rnd_addr[0], rnd_addr[1], rnd_addr[2], rnd_addr[3], rnd_addr[4], rnd_addr[5]);
         reset_advertising();
@@ -325,11 +327,10 @@ void app_main(void)
     ESP_LOGI(LOG_TAG, "Entering serial modem mode");
     init_serial();
 
-    uint32_t len = 10;
     uint8_t data[] = "HELLOWORLD";
 
     while (1) { 
-        send_data_once_blocking(data, sizeof(data), 4, current_message_id);
+        send_data_once_blocking(data, sizeof(data) - 1, 4, current_message_id);
         vTaskDelay(300);
     }
     esp_ble_gap_stop_advertising();
