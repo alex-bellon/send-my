@@ -87,25 +87,34 @@ class FindMyController: ObservableObject {
     let chunkLength = m.chunkLength
     let decoded: [UInt8]
 
-    if m.decodedBytes! != nil{
+    if m.decodedBytes != nil{
         decoded = m.decodedBytes!
     } else {
         decoded = [0x0]
     }
 
     let recovered: [UInt8] = xorArrays(a: startKey, b: decoded)
-    let adv_key_prefix = static_prefix + byteArray(from: m.modemID)
 
     for val in 0..<Int(pow(Double(2), Double(chunkLength))) {
       var validKeyCounter: UInt16 = 0
-      var adv_key = adv_key_prefix
+      var adv_key = [UInt8]()
       var offsetVal = byteArray(from: val << (chunkLength * startChunk))
 
       repeat {
+        adv_key = static_prefix + byteArray(from: m.modemID)
         adv_key += byteArray(from: validKeyCounter) + xorArrays(a: recovered, b: offsetVal)
         validKeyCounter += 1
         print("==== Testing key")
-      } while (BoringSSL.isPublicKeyValid(Data(adv_key)) == 0)
+        print("Valid Key Counter: \(validKeyCounter)")
+        var key_hex = String(format:"%02X", adv_key[0])
+        for i in 1..<adv_key.count{
+            key_hex += " " + String(format:"%02X", adv_key[i])
+        }
+        key_hex += "\n"
+//        print("Attempted key: \(key_hex)")
+          print(adv_key.count)
+        print()
+      } while (BoringSSL.isPublicKeyValid(Data(adv_key)) == 0 && validKeyCounter < UInt16.max)
 
       print("Found valid pub key on \(validKeyCounter). try")
       let k = DataEncodingKey(index: UInt32(startChunk), value: UInt8(val), advertisedKey: adv_key, hashedKey: SHA256.hash(data: adv_key).data)
@@ -218,19 +227,45 @@ class FindMyController: ObservableObject {
           print("Bit \(k.index): \(k.value) (\(count))")
       }
       
-      var workingBitStr = message!.workingBitStr!
-      var decodedBits = message!.decodedBits!
-      var decodedStr = message!.decodedStr!
+      var workingBitStr: String
+      var decodedBits : String
+      var decodedStr: String
+        
+      if message!.workingBitStr != nil {
+          workingBitStr  = message!.workingBitStr!
+      }
+      else {
+          workingBitStr = ""
+      }
+        
+      if message!.decodedBits != nil {
+          decodedBits  = message!.decodedBits!
+      }
+      else {
+          decodedBits = ""
+      }
+        
+      if message!.decodedStr != nil {
+          decodedStr  = message!.decodedStr!
+      }
+      else {
+          decodedStr = ""
+      }
+        
+//      var workingBitStr = message!.workingBitStr!
+//      var decodedBits = message!.decodedBits!
+//      var decodedStr = message!.decodedStr!
       var chunk_valid = 1
       var chunk_completely_invalid = 1
       if result.keys.max() == nil { print("No reports found"); completion(nil); return }
-      let val = result[message!.fetchedChunks]!
+        
+      let val = result[message!.fetchedChunks]
       if val == nil {
           chunk_valid = 0
           workingBitStr += "?"
       } else {
           chunk_completely_invalid = 0
-          var bitStr = String(val, radix: 2)
+          var bitStr = String(val!, radix: 2)
           var bitStrPadded = pad(string: bitStr, toSize: Int(chunkLength))
           workingBitStr += bitStrPadded
           decodedBits = bitStr + decodedBits
