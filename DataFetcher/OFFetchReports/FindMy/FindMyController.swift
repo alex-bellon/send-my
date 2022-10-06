@@ -37,7 +37,8 @@ class FindMyController: ObservableObject {
   @Published var modemID: UInt32 = 0
   @Published var chunkLength: UInt32 = 8
 
-  @Published var startKey: [UInt8] = [0x7a, 0x6a, 0x10, 0x26, 0x7a, 0x6a, 0x10, 0x26, 0x7a, 0x6a, 0x10, 0x26, 0x7a, 0x6a, 0x10, 0x26, 0x7a, 0x6a, 0x10, 0x26]
+  //@Published var startKey: [UInt8] = [0x7a, 0x6a, 0x10, 0x26, 0x7a, 0x6a, 0x10, 0x26, 0x7a, 0x6a, 0x10, 0x26, 0x7a, 0x6a, 0x10, 0x26, 0x7a, 0x6a, 0x10, 0x26]
+  @Published var startKey: [UInt8] = [0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0]
 
   func clearMessages() {
      self.messages = [UInt32: Message]()
@@ -58,10 +59,6 @@ class FindMyController: ObservableObject {
       }
     } else if (a.count > b.count) {
       for i in 0..<b.count {
-//        print("a: \(a[i])")
-//        print("b: \(b[i])")
-//        print("i: \(i)")
-//        print("result: \(result[i])")
           result.append(a[i] ^ b[i])
       }
       for i in b.count..<a.count {
@@ -89,11 +86,13 @@ class FindMyController: ObservableObject {
     var m = self.messages[messageID]!
     let chunkLength = m.chunkLength
     let decoded: [UInt8]
+
     if m.decodedBytes! != nil{
         decoded = m.decodedBytes!
     } else {
-        decoded = [0]
+        decoded = [0x0]
     }
+
     let recovered: [UInt8] = xorArrays(a: startKey, b: decoded)
     let adv_key_prefix = static_prefix + byteArray(from: m.modemID)
 
