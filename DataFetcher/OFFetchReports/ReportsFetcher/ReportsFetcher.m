@@ -123,7 +123,7 @@
     long long startDate = [date timeIntervalSince1970] * 1000;
     long long endDate = ([date timeIntervalSince1970] + duration) * 1000.0;
     
-    NSLog(@"Requesting data for %@", publicKeys);
+    //NSLog(@"Requesting data for %@", publicKeys);
     NSDictionary * query = @{
         @"search": @[
                 @{
@@ -135,7 +135,7 @@
     };
     NSData *httpBody = [NSJSONSerialization dataWithJSONObject:query options:0 error:nil];
         
-    NSLog(@"Query : %@",query);
+    //NSLog(@"Query : %@",query);
     NSString *authKey = @"authorization";
     NSData *securityToken = searchPartyToken;
     NSString *appleId = [self fetchAppleAccountId];
@@ -159,7 +159,7 @@
         for(id key in appleHeadersDict)
             [req setValue:[appleHeadersDict objectForKey:key] forHTTPHeaderField:key];
         
-        NSLog(@"Headers:\n%@",req.allHTTPHeaderFields);
+        //NSLog(@"Headers:\n%@",req.allHTTPHeaderFields);
         
         [req setHTTPBody:httpBody];
         

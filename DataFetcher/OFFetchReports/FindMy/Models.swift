@@ -220,7 +220,7 @@ struct Message: Codable {
   let messageID: UInt32
   let chunkLength: UInt32
 
-  var fetchedChunks = UInt32()
+  var fetchedChunks = UInt32(0)
 
   var keys = [DataEncodingKey]()
 
