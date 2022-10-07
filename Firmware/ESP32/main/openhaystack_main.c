@@ -34,7 +34,7 @@
 #define BUF_SIZE (1024)
 
 // Set custom modem id before flashing:
-static const uint32_t modem_id = 0xdeadbeef;
+static const uint32_t modem_id = 0xaaaabeef;
 
 static const char* LOG_TAG = "findmy_modem";
 
@@ -199,7 +199,7 @@ void set_addr_and_payload_for_byte(uint32_t index, uint32_t msg_id, uint8_t val,
         public_key[28 - ((offset/8) + 1)] ^= xor_val;
     } else { 
         uint8_t xor_val_lo = val << (8 - remain);
-        uint8_t xor_val_hi = val >> (chunk_len - remain);
+        uint8_t xor_val_hi = val >> remain;
         public_key[28 - ((offset/8))] ^= xor_val_lo;
         public_key[28 - ((offset/8) + 1)] ^= xor_val_hi;
     }
@@ -248,18 +248,22 @@ void send_data_once_blocking(uint8_t* data_to_send, uint32_t len, uint32_t chunk
         uint32_t offset = chunk_i * chunk_len;
         uint32_t remain = offset % 8;
 
+        
         bool overlap = ((chunk_len * (chunk_i + 1)) / 8) != ((chunk_len * chunk_i) / 8);
     
         if (!overlap) {
             val = data_to_send[end - (offset/8)] >> remain;
             val &= mask;
         } else { 
-            uint8_t val_lo = data_to_send[end - (offset/8)] >> remain;
-            val_lo &= mask;
-            uint8_t val_hi = data_to_send[end - (offset/8) + 1] << remain;
+            uint8_t val_hi = data_to_send[end - (offset/8) - 1];
+            val_hi = val_hi << (8 - remain);
             val_hi &= mask; 
+            uint8_t val_lo = data_to_send[end - (offset/8)];
+            val_lo = val_lo >> remain;
+            val_lo &= mask;
             val = val_lo ^ val_hi;
         }
+
 
         set_addr_and_payload_for_byte(chunk_i, msg_id, val, chunk_len);
         ESP_LOGD(LOG_TAG, "    resetting. Will now use device address: %02x %02x %02x %02x %02x %02x", rnd_addr[0], rnd_addr[1], rnd_addr[2], rnd_addr[3], rnd_addr[4], rnd_addr[5]);
@@ -329,8 +333,9 @@ void app_main(void)
 
     uint8_t data[] = "HELLOWORLD";
 
-    while (1) { 
-        send_data_once_blocking(data, sizeof(data) - 1, 4, current_message_id);
+    while (1) {
+        ESP_LOGI(LOG_TAG, "Bytes: %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x", data[0], data[1], data[2], data[3], data[4], data[5], data[6], data[7], data[8], data[9]); 
+        send_data_once_blocking(data, sizeof(data) - 1, 3, current_message_id);
         vTaskDelay(300);
     }
     esp_ble_gap_stop_advertising();
