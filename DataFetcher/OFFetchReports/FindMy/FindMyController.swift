@@ -96,7 +96,7 @@ class FindMyController: ObservableObject {
     }
 
     let recovered: [UInt8] = xorArrays(a: startKey, b: decoded)
-
+        
     for val in 0..<Int(pow(Double(2), Double(chunkLength))) {
       var validKeyCounter: UInt16 = 0
       var adv_key = [UInt8]()
@@ -156,7 +156,7 @@ class FindMyController: ObservableObject {
     // Includes async fetch if finished, otherwise fetches more bits
     self.fetchReports(for: messageID, with: searchPartyToken, completion: completion)
   }
-
+    
   func fetchMessage(
     for modemID: UInt32, message messageID: UInt32, chunk chunkLength: UInt32, with searchPartyToken: Data, completion: @escaping (Error?) -> Void
     ) {
@@ -370,7 +370,6 @@ class FindMyController: ObservableObject {
             var byte = Int(strtoul(substr, nil, 2))
             decodedBytes.append(UInt8(byte))
         }
-            
     
       message?.decodedBytes = decodedBytes
       message?.decodedStr = decodedStr
