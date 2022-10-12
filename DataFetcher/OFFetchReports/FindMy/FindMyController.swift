@@ -82,6 +82,28 @@ class FindMyController: ObservableObject {
     for modemID: UInt32, message messageID: UInt32, startChunk: UInt32, with searchPartyToken: Data, completion: @escaping (Error?) -> Void
     ) {
     
+    var experiment = true
+    
+    if experiment == true{
+//        self.fetchReports(for: messageID, with: searchPartyToken, completion: completion)
+//        let file = "/Users/alexyen/Dropbox/UCSD/Research/Helium/PositiveSecurity/send-my-balex/DataFetcher/pub_keys.txt"
+        let file = "pub_keys.txt"
+        
+        if var dir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first {
+            let fileURL = dir.appendingPathComponent(file)
+
+            //reading
+            do {
+                let text = try String(contentsOf: fileURL, encoding: .utf8)
+                let strings = text.components(separatedBy: .newlines)
+                
+            }
+            catch {print("Error: could not read file")}
+        }
+        return
+    }
+    
+    
     let static_prefix: [UInt8] = [0xba, 0xbe]
 
     var m = self.messages[messageID]!
