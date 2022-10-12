@@ -80,12 +80,12 @@ static esp_ble_adv_params_t ble_adv_params = {
     // Minimum advertising interval for undirected and low duty cycle
     // directed advertising. Range: 0x0020 to 0x4000 Default: N = 0x0800
     // (1.28 second) Time = N * 0.625 msec Time Range: 20 ms to 10.24 sec
-    .adv_int_min        = 0x0640, 
+    .adv_int_min        = 0x0020, 
     // Advertising max interval:
     // Maximum advertising interval for undirected and low duty cycle
     // directed advertising. Range: 0x0020 to 0x4000 Default: N = 0x0800
     // (1.28 second) Time = N * 0.625 msec Time Range: 20 ms to 10.24 sec
-    .adv_int_max        = 0x0C80, 
+    .adv_int_max        = 0x0022, 
     // Advertisement type
     .adv_type           = ADV_TYPE_NONCONN_IND,
     // Use the random address
@@ -110,7 +110,7 @@ static void esp_gap_cb(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *par
             if ((err = param->adv_start_cmpl.status) != ESP_BT_STATUS_SUCCESS) {
                 ESP_LOGE(LOG_TAG, "advertising start failed: %s", esp_err_to_name(err));
             } else {
-                ESP_LOGD(LOG_TAG, "advertising started");
+                ESP_LOGI(LOG_TAG, "advertising started");
             }
             break;
 
@@ -119,7 +119,7 @@ static void esp_gap_cb(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *par
                 ESP_LOGE(LOG_TAG, "adv stop failed: %s", esp_err_to_name(err));
             }
             else {
-                ESP_LOGD(LOG_TAG, "advertising stopped");
+                ESP_LOGI(LOG_TAG, "advertising stopped");
             }
             break;
         default:
@@ -218,6 +218,23 @@ void set_addr_and_payload_for_byte(uint32_t index, uint32_t msg_id, uint8_t val,
 }
 
 // No error handling yet
+uint8_t* read_line_or_dismiss(int* len) {
+    uint8_t *line = (uint8_t *) malloc(BUF_SIZE);
+    int size;
+    uint8_t *ptr = line;
+    while(1) {
+        size = uart_read_bytes(UART_PORT_NUM, (unsigned char *)ptr, 1, 20 / portTICK_PERIOD_MS);
+        if (size == 1) {
+            if (*ptr == '\n') {
+                *ptr = 0;
+                *len = ptr-line;
+                return line;
+            }
+            ptr++;
+        }
+        else { free(line); ESP_LOGI(LOG_TAG, "Dismissing line"); return 0; }
+    }
+}
 void reset_advertising() {
     esp_err_t status;
     esp_ble_gap_stop_advertising();
@@ -273,24 +290,6 @@ void send_data_once_blocking(uint8_t* data_to_send, uint32_t len, uint32_t chunk
     esp_ble_gap_stop_advertising();
 }
 
-uint8_t* read_line_or_dismiss(int* len) {
-    uint8_t *line = (uint8_t *) malloc(BUF_SIZE);
-    int size;
-    uint8_t *ptr = line;
-    while(1) {
-        size = uart_read_bytes(UART_PORT_NUM, (unsigned char *)ptr, 1, 20 / portTICK_PERIOD_MS);
-        if (size == 1) {
-            if (*ptr == '\n') {
-                *ptr = 0;
-                *len = ptr-line;
-                return line;
-            }
-            ptr++;
-        }
-        else { free(line); ESP_LOGI(LOG_TAG, "Dismissing line"); return 0; }
-    }
-}
-
 void init_serial() {
     uart_config_t uart_config = {
         .baud_rate = UART_BAUD_RATE,
@@ -336,7 +335,7 @@ void app_main(void)
     while (1) {
         ESP_LOGI(LOG_TAG, "Bytes: %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x", data[0], data[1], data[2], data[3], data[4], data[5], data[6], data[7], data[8], data[9]); 
         send_data_once_blocking(data, sizeof(data) - 1, 3, current_message_id);
-        vTaskDelay(300);
+        vTaskDelay(500);
     }
     esp_ble_gap_stop_advertising();
 }
