@@ -80,12 +80,12 @@ static esp_ble_adv_params_t ble_adv_params = {
     // Minimum advertising interval for undirected and low duty cycle
     // directed advertising. Range: 0x0020 to 0x4000 Default: N = 0x0800
     // (1.28 second) Time = N * 0.625 msec Time Range: 20 ms to 10.24 sec
-    .adv_int_min        = 0x0020, 
+    .adv_int_min        = 0x3fff, 
     // Advertising max interval:
     // Maximum advertising interval for undirected and low duty cycle
     // directed advertising. Range: 0x0020 to 0x4000 Default: N = 0x0800
     // (1.28 second) Time = N * 0.625 msec Time Range: 20 ms to 10.24 sec
-    .adv_int_max        = 0x0022, 
+    .adv_int_max        = 0x4000, 
     // Advertisement type
     .adv_type           = ADV_TYPE_NONCONN_IND,
     // Use the random address
@@ -281,7 +281,7 @@ void send_data_once_blocking(uint8_t* data_to_send, uint32_t len, uint32_t chunk
             val = val_lo ^ val_hi;
         }
 
-
+        
         set_addr_and_payload_for_byte(chunk_i, msg_id, val, chunk_len);
         ESP_LOGD(LOG_TAG, "    resetting. Will now use device address: %02x %02x %02x %02x %02x %02x", rnd_addr[0], rnd_addr[1], rnd_addr[2], rnd_addr[3], rnd_addr[4], rnd_addr[5]);
         reset_advertising();
