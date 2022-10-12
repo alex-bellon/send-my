@@ -34,7 +34,7 @@
 #define BUF_SIZE (1024)
 
 // Set custom modem id before flashing:
-static const uint32_t modem_id = 0xaaaabeef;
+static const uint32_t modem_id = 0x000fbeef;
 
 static const char* LOG_TAG = "findmy_modem";
 
@@ -172,51 +172,6 @@ void copy_2b_big_endian(uint8_t *dst, uint8_t *src) {
     dst[0] = src[1]; dst[1] = src[0];
 }
 
-// index as first part of payload to have an often changing MAC address
-// [2 byte magic] [4 byte modem_id] [2 byte tweak] [20 byte payload]
-void set_addr_and_payload_for_byte(uint32_t index, uint32_t msg_id, uint8_t val, uint32_t chunk_len) {
-    uint16_t valid_key_counter = 0;
-    static uint8_t public_key[28] = {0};
-    public_key[0] = 0xBA; // magic value
-    public_key[1] = 0xBE;
-    copy_4b_big_endian(&public_key[2], &modem_id);
-    public_key[6] = 0x00;
-    public_key[7] = 0x00;
-    if (index) {
-        memcpy(&public_key[8], &curr_addr, 20);
-    } else {
-        memcpy(&public_key[8], &start_addr, 20);
-    }
-
-    uint32_t offset = (chunk_len * (index + 1)) % (8 * chunk_len * (20 / chunk_len)); // mod the offset correctly
-    uint32_t remain = 8 - ((chunk_len * index) % 8);
-    
-    if (remain == chunk_len) {
-        uint8_t xor_val = val << (8 - remain);
-        public_key[28 - (offset/8)] ^= xor_val;
-    } else if (remain > chunk_len) {
-        uint8_t xor_val = val << (8 - remain);
-        public_key[28 - ((offset/8) + 1)] ^= xor_val;
-    } else { 
-        uint8_t xor_val_lo = val << (8 - remain);
-        uint8_t xor_val_hi = val >> remain;
-        public_key[28 - ((offset/8))] ^= xor_val_lo;
-        public_key[28 - ((offset/8) + 1)] ^= xor_val_hi;
-    }
-
-    memcpy(&curr_addr, &public_key[8], 20);
-
-    do {
-      copy_2b_big_endian(&public_key[6], &valid_key_counter);
-	    valid_key_counter++;
-    } while (!is_valid_pubkey(public_key));
-
-    ESP_LOGI(LOG_TAG, "  pub key to use (%d. try): %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x", valid_key_counter, public_key[0], public_key[1], public_key[2], public_key[3], public_key[4], public_key[5], public_key[6], public_key[7], public_key[8], public_key[9], public_key[10], public_key[11], public_key[12], public_key[13],public_key[14], public_key[15],public_key[16],public_key[17],public_key[18], public_key[19], public_key[20], public_key[21], public_key[22], public_key[23], public_key[24], public_key[25], public_key[26],  public_key[27]);
-
-    set_addr_from_key(rnd_addr, public_key);
-    set_payload_from_key(adv_data, public_key);
-}
-
 // No error handling yet
 uint8_t* read_line_or_dismiss(int* len) {
     uint8_t *line = (uint8_t *) malloc(BUF_SIZE);
@@ -248,46 +203,12 @@ void reset_advertising() {
     }
 }
 
-void send_data_once_blocking(uint8_t* data_to_send, uint32_t len, uint32_t chunk_len, uint32_t msg_id) {
-    ESP_LOGI(LOG_TAG, "Data to send (msg_id: %d): %s", msg_id, data_to_send);
-
-    int num_chunks = ((len * 8) / chunk_len);
-    if ((len * 8) % chunk_len) { num_chunks++; }
+void send_data_once_blocking(uint8_t* public_key) { 
+    set_addr_from_key(rnd_addr, public_key);
+    set_payload_from_key(adv_data, public_key);
+    reset_advertising();
+    vTaskDelay(2);    
     
-    uint8_t mask = 0xff >> (8 - chunk_len);
-
-    uint8_t* data = data_to_send;
-    uint32_t end = len - 1;   
-
-    for (int chunk_i = 0; chunk_i < num_chunks; chunk_i++) {
-        uint8_t val = 0;
-
-        uint32_t offset = chunk_i * chunk_len;
-        uint32_t remain = offset % 8;
-
-        
-        bool overlap = ((chunk_len * (chunk_i + 1)) / 8) != ((chunk_len * chunk_i) / 8);
-    
-        if (!overlap) {
-            val = data_to_send[end - (offset/8)] >> remain;
-            val &= mask;
-        } else { 
-            uint8_t val_hi = data_to_send[end - (offset/8) - 1];
-            val_hi = val_hi << (8 - remain);
-            val_hi &= mask; 
-            uint8_t val_lo = data_to_send[end - (offset/8)];
-            val_lo = val_lo >> remain;
-            val_lo &= mask;
-            val = val_lo ^ val_hi;
-        }
-
-        
-        set_addr_and_payload_for_byte(chunk_i, msg_id, val, chunk_len);
-        ESP_LOGD(LOG_TAG, "    resetting. Will now use device address: %02x %02x %02x %02x %02x %02x", rnd_addr[0], rnd_addr[1], rnd_addr[2], rnd_addr[3], rnd_addr[4], rnd_addr[5]);
-        reset_advertising();
-        vTaskDelay(2);    
-    }
-    esp_ble_gap_stop_advertising();
 }
 
 void init_serial() {
@@ -330,12 +251,13 @@ void app_main(void)
     ESP_LOGI(LOG_TAG, "Entering serial modem mode");
     init_serial();
 
-    uint8_t data[] = "HELLOWORLD";
+    uint8_t public_key[];
+    uint8_t* keys[] = ;
 
-    while (1) {
-        ESP_LOGI(LOG_TAG, "Bytes: %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x", data[0], data[1], data[2], data[3], data[4], data[5], data[6], data[7], data[8], data[9]); 
+    for (int i = 0; i < (sizeof(keys) / sizeof(keys[0])); i++) {
+        public_key = keys[i];
+        ESP_LOGI(LOG_TAG, "KEY: %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x", public_key[0], public_key[1], public_key[2], public_key[3], public_key[4], public_key[5], public_key[6], public_key[7], public_key[8], public_key[9], public_key[10], public_key[11], public_key[12], public_key[13],public_key[14], public_key[15],public_key[16],public_key[17],public_key[18], public_key[19], public_key[20], public_key[21], public_key[22], public_key[23], public_key[24], public_key[25], public_key[26], public_key[27]);
         send_data_once_blocking(data, sizeof(data) - 1, 3, current_message_id);
-        vTaskDelay(500);
     }
     esp_ble_gap_stop_advertising();
 }
