@@ -11,6 +11,7 @@ import Combine
 import Foundation
 import SwiftUI
 import CryptoKit
+import MapKit
 
 
 func byteArray<T>(from value: T) -> [UInt8] where T: FixedWidthInteger {
@@ -84,19 +85,27 @@ class FindMyController: ObservableObject {
     
     var experiment = true
     
-    if experiment == true{
+    if experiment {
 //        self.fetchReports(for: messageID, with: searchPartyToken, completion: completion)
 //        let file = "/Users/alexyen/Dropbox/UCSD/Research/Helium/PositiveSecurity/send-my-balex/DataFetcher/pub_keys.txt"
-        let file = "pub_keys.txt"
+        let file = "pub_keys_0_decimal.txt"
         
         if var dir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first {
             let fileURL = dir.appendingPathComponent(file)
-
+            var hashedKeys = [String]()
             //reading
             do {
+//                let rm_char: Set<Character> = [" "]
                 let text = try String(contentsOf: fileURL, encoding: .utf8)
-                let strings = text.components(separatedBy: .newlines)
-                
+                var strings = text.components(separatedBy: .newlines)
+//                for i in 0..<strings.count {
+                for i in 0..<10 {
+                    var stringArray = strings[i].split(separator: " ")
+                    let intArray = stringArray.map{ UInt8($0)! }
+                    let keyHash = SHA256.hash(data: intArray).data.base64EncodedString()
+                    hashedKeys.append(keyHash)
+                    self.fetchKeys(for: hashedKeys, with: searchPartyToken, completion: completion)
+                }
             }
             catch {print("Error: could not read file")}
         }
@@ -169,6 +178,7 @@ class FindMyController: ObservableObject {
       //print("Found valid pub key on \(validKeyCounter). try")
       let k = DataEncodingKey(index: UInt32(startChunk), value: UInt8(val), advertisedKey: adv_key, hashedKey: SHA256.hash(data: adv_key).data)
       m.keys.append(k)
+//        print("Hashed_Key: \(k.hashValue)")
 //      print(Data(adv_key).base64EncodedString())
     }
 
@@ -205,6 +215,16 @@ class FindMyController: ObservableObject {
 
         let keys = self.messages[messageID]!.keys
         let keyHashes = keys.map({ $0.hashedKey.base64EncodedString() })
+        
+        
+//        SHA256.hash(data: adv_key).data
+        print("Adv_Key 0 value: \(keys[0].advertisedKey)")
+        print("Hashed Adv_Key 0: \(SHA256.hash(data: keys[0].advertisedKey).data.base64EncodedString())")
+        print(keyHashes[0])
+        
+        print(type(of: keyHashes))
+        
+//        print(keyHashes)
 
         // 21 days reduced to 1 day
         let duration: Double = (24 * 60 * 60) * 1
@@ -250,6 +270,64 @@ class FindMyController: ObservableObject {
         }
       }
     }
+    
+    func fetchKeys(for keyHashes: [String], with searchPartyToken: Data, completion: @escaping (Error?) -> Void) {
+      DispatchQueue.global(qos: .background).async {
+        var results = [FindMyReport]()
+        let fetchReportGroup = DispatchGroup()
+        let fetcher = ReportsFetcher()
+
+          fetchReportGroup.enter()
+
+//          let keys = self.messages[messageID]!.keys
+//          let keyHashes = keys.map({ $0.hashedKey.base64EncodedString() })
+
+          // 21 days reduced to 1 day
+          let duration: Double = (24 * 60 * 60) * 1
+          let startDate = Date() - duration
+
+          fetcher.query(
+            forHashes: keyHashes,
+            start: startDate,
+            duration: duration,
+            searchPartyToken: searchPartyToken
+          ) { jd in
+            guard let jsonData = jd else {
+              fetchReportGroup.leave()
+              return
+            }
+
+            do {
+              // Decode the report
+              let report = try JSONDecoder().decode(FindMyReportResults.self, from: jsonData)
+//              self.messages[UInt32(messageID)]!.reports += report.results
+                results += report.results
+            } catch {
+              print("Failed with error \(error)")
+//              self.messages[UInt32(messageID)]!.reports = []
+                results = []
+            }
+            fetchReportGroup.leave()
+          }
+
+        // Completion Handler
+        fetchReportGroup.notify(queue: .main) {
+          print("Finished loading the reports. Now decode them")
+
+          // Export the reports to the desktop
+          var reports = [FindMyReport]()
+          for (_, message) in self.messages {
+            for report in message.reports {
+              reports.append(report)
+            }
+          }
+//          DispatchQueue.main.async {
+//              self.decodeReports(messageID: messageID, with: searchPartyToken) { _ in completion(nil) }
+//            }
+
+          }
+        }
+      }
 
   
 

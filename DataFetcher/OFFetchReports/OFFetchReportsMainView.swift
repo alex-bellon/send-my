@@ -66,14 +66,18 @@ struct OFFetchReportsMainView: View {
                 while count < 65535 {
                     keyTest = staticPrefix + byteArray(from: modemID)
                     keyTest += byteArray(from: validCounter) + zeroPadding + byteArray(from: count)
+//                    print("keyTest: \(keyTest)")
+                    var decKeyTest = String(keyTest[0])
                     var hexKeyTest = String(format:"%02X", keyTest[0])
                     for i in 1..<keyTest.count{
-                        hexKeyTest += " " + String(format:"%02X", keyTest[i])
+//                        hexKeyTest += " " + String(format:"%02X", keyTest[i])
+                        decKeyTest += " " + String(keyTest[i])
                     }
-                    print(hexKeyTest)
                     if BoringSSL.isPublicKeyValid(Data(keyTest)) == 0 {
                         validCounter += 1
                     } else {
+//                        print(hexKeyTest)
+                        print(decKeyTest)
                         count += 1
                         validCounter = 0
                     }
