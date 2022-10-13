@@ -91,21 +91,21 @@ class FindMyController: ObservableObject {
     if experiment {
 //        self.fetchReports(for: messageID, with: searchPartyToken, completion: completion)
 //        let file = "/Users/alexyen/Dropbox/UCSD/Research/Helium/PositiveSecurity/send-my-balex/DataFetcher/pub_keys.txt"
-        let file = "abcdbeef_pubkeys.txt"
+        let file = "abcdbeef_dec_pubkeys.txt"
         
         if var dir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first {
             let fileURL = dir.appendingPathComponent(file)
             
             var advKeys = [[UInt8]]()
             advKeys.append([186, 190, 171, 205, 190, 239, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
-            advKeys.append([186, 190, 171, 205, 190, 239, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1])
+            advKeys.append([186, 190, 171, 205, 190, 239, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1])
             advKeys.append([186, 190, 171, 205, 190, 239, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2])
             advKeys.append([186, 190, 171, 205, 190, 239, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3])
             advKeys.append([186, 190, 171, 205, 190, 239, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4])
             advKeys.append([186, 190, 171, 205, 190, 239, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 5])
             advKeys.append([186, 190, 171, 205, 190, 239, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 6])
             advKeys.append([186, 190, 171, 205, 190, 239, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 7])
-            advKeys.append([186, 190, 171, 205, 190, 239, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 8])
+            advKeys.append([186, 190, 171, 205, 190, 239, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 8])
             advKeys.append([186, 190, 171, 205, 190, 239, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 9])
             
 //            advKeys.append([250, 190, 171, 205, 190, 239, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
@@ -123,8 +123,8 @@ class FindMyController: ObservableObject {
             //reading
             do {
 //                let rm_char: Set<Character> = [" "]
-                //let text = try String(contentsOf: fileURL, encoding: .utf8)
-                //var strings = text.components(separatedBy: .newlines)
+//                let text = try String(contentsOf: fileURL, encoding: .utf8)
+//                var strings = text.components(separatedBy: .newlines)
                 for i in startKeyIndex..<endKeyIndex {
 //                    var stringArray = strings[i].split(separator: " ")
 //                    let intArray = stringArray.map{ UInt8($0)! }

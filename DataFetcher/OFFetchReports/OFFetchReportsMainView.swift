@@ -56,6 +56,7 @@ struct OFFetchReportsMainView: View {
             
             let genKeys = true
             
+            
             if genKeys {
 //                generating a bunch of keys
                 let staticPrefix: [UInt8] = [0xba, 0xbe]
@@ -65,23 +66,19 @@ struct OFFetchReportsMainView: View {
                 var validCounter: UInt16 = 0
                 var keyTest = [UInt8]()
                 while count < 65535 {
-                    keyTest = staticPrefix + byteArray(from: modemID)
-                    keyTest += byteArray(from: validCounter) + zeroPadding + byteArray(from: count)
-//                    print("keyTest: \(keyTest)")
-                    var decKeyTest = String(keyTest[0])
+                    repeat {
+                      keyTest = staticPrefix + byteArray(from: modemID)
+                      keyTest += byteArray(from: validCounter) + zeroPadding + byteArray(from: count)
+                      validCounter += 1
+                    } while (BoringSSL.isPublicKeyValid(Data(keyTest)) == 0 && validCounter < UInt16.max)
                     var hexKeyTest = String(format:"%02X", keyTest[0])
                     for i in 1..<keyTest.count{
                         hexKeyTest += " " + String(format:"%02X", keyTest[i])
-//                        decKeyTest += " " + String(keyTest[i])
                     }
-                    if BoringSSL.isPublicKeyValid(Data(keyTest)) == 0 {
-                        validCounter += 1
-                    } else {
-                        print(hexKeyTest)
-//                        print(decKeyTest)
-                        count += 1
-                        validCounter = 0
-                    }
+                    print(hexKeyTest)
+//                    print(keyTest)
+                    count += 1
+                    validCounter = 0
                 }
             }
         },
