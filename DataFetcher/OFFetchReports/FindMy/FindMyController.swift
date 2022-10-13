@@ -83,7 +83,10 @@ class FindMyController: ObservableObject {
     for modemID: UInt32, message messageID: UInt32, startChunk: UInt32, with searchPartyToken: Data, completion: @escaping (Error?) -> Void
     ) {
     
-    var experiment = true
+    var experiment = false
+//  NOTE: start and end indices are
+    let startKeyIndex = 0
+    let endKeyIndex = 100
     
     if experiment {
 //        self.fetchReports(for: messageID, with: searchPartyToken, completion: completion)
@@ -98,14 +101,13 @@ class FindMyController: ObservableObject {
 //                let rm_char: Set<Character> = [" "]
                 let text = try String(contentsOf: fileURL, encoding: .utf8)
                 var strings = text.components(separatedBy: .newlines)
-//                for i in 0..<strings.count {
-                for i in 0..<10 {
+                for i in startKeyIndex..<endKeyIndex {
                     var stringArray = strings[i].split(separator: " ")
                     let intArray = stringArray.map{ UInt8($0)! }
                     let keyHash = SHA256.hash(data: intArray).data.base64EncodedString()
                     hashedKeys.append(keyHash)
-                    self.fetchKeys(for: hashedKeys, with: searchPartyToken, completion: completion)
                 }
+                self.fetchKeys(for: hashedKeys, with: searchPartyToken, completion: completion)
             }
             catch {print("Error: could not read file")}
         }
@@ -215,16 +217,6 @@ class FindMyController: ObservableObject {
 
         let keys = self.messages[messageID]!.keys
         let keyHashes = keys.map({ $0.hashedKey.base64EncodedString() })
-        
-        
-//        SHA256.hash(data: adv_key).data
-        print("Adv_Key 0 value: \(keys[0].advertisedKey)")
-        print("Hashed Adv_Key 0: \(SHA256.hash(data: keys[0].advertisedKey).data.base64EncodedString())")
-        print(keyHashes[0])
-        
-        print(type(of: keyHashes))
-        
-//        print(keyHashes)
 
         // 21 days reduced to 1 day
         let duration: Double = (24 * 60 * 60) * 1
@@ -244,6 +236,7 @@ class FindMyController: ObservableObject {
           do {
             // Decode the report
             let report = try JSONDecoder().decode(FindMyReportResults.self, from: jsonData)
+              print("Report Results: \(report.results)")
             self.messages[UInt32(messageID)]!.reports += report.results
           } catch {
             print("Failed with error \(error)")
