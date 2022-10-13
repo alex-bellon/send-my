@@ -83,28 +83,63 @@ class FindMyController: ObservableObject {
     for modemID: UInt32, message messageID: UInt32, startChunk: UInt32, with searchPartyToken: Data, completion: @escaping (Error?) -> Void
     ) {
     
-    var experiment = false
+    var experiment = true
 //  NOTE: start and end indices are
     let startKeyIndex = 0
-    let endKeyIndex = 100
+    let endKeyIndex = 10
     
     if experiment {
 //        self.fetchReports(for: messageID, with: searchPartyToken, completion: completion)
 //        let file = "/Users/alexyen/Dropbox/UCSD/Research/Helium/PositiveSecurity/send-my-balex/DataFetcher/pub_keys.txt"
-        let file = "pub_keys_0_decimal.txt"
+        let file = "abcdbeef_pubkeys.txt"
         
         if var dir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first {
             let fileURL = dir.appendingPathComponent(file)
-            var hashedKeys = [String]()
+            
+            var advKeys = [[UInt8]]()
+            advKeys.append([186, 190, 171, 205, 190, 239, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
+            advKeys.append([186, 190, 171, 205, 190, 239, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1])
+            advKeys.append([186, 190, 171, 205, 190, 239, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2])
+            advKeys.append([186, 190, 171, 205, 190, 239, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3])
+            advKeys.append([186, 190, 171, 205, 190, 239, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4])
+            advKeys.append([186, 190, 171, 205, 190, 239, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 5])
+            advKeys.append([186, 190, 171, 205, 190, 239, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 6])
+            advKeys.append([186, 190, 171, 205, 190, 239, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 7])
+            advKeys.append([186, 190, 171, 205, 190, 239, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 8])
+            advKeys.append([186, 190, 171, 205, 190, 239, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 9])
+            
+//            advKeys.append([250, 190, 171, 205, 190, 239, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
+//            advKeys.append([250, 190, 171, 205, 190, 239, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1])
+//            advKeys.append([250, 190, 171, 205, 190, 239, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2])
+//            advKeys.append([250, 190, 171, 205, 190, 239, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3])
+//            advKeys.append([250, 190, 171, 205, 190, 239, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4])
+//            advKeys.append([250, 190, 171, 205, 190, 239, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 5])
+//            advKeys.append([250, 190, 171, 205, 190, 239, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 6])
+//            advKeys.append([250, 190, 171, 205, 190, 239, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 7])
+//            advKeys.append([250, 190, 171, 205, 190, 239, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 8])
+//            advKeys.append([250, 190, 171, 205, 190, 239, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 9])
+            
+            var hashedKeys = [Data]()
             //reading
             do {
 //                let rm_char: Set<Character> = [" "]
-                let text = try String(contentsOf: fileURL, encoding: .utf8)
-                var strings = text.components(separatedBy: .newlines)
+                //let text = try String(contentsOf: fileURL, encoding: .utf8)
+                //var strings = text.components(separatedBy: .newlines)
                 for i in startKeyIndex..<endKeyIndex {
-                    var stringArray = strings[i].split(separator: " ")
-                    let intArray = stringArray.map{ UInt8($0)! }
-                    let keyHash = SHA256.hash(data: intArray).data.base64EncodedString()
+//                    var stringArray = strings[i].split(separator: " ")
+//                    let intArray = stringArray.map{ UInt8($0)! }
+//                    print(intArray)
+                    let intArray = advKeys[i]
+                    //print(intArray)
+                    
+                    var keyHex = String(format:"%02X", intArray[0])
+                    for i in 1..<intArray.count{
+                        keyHex += " " + String(format:"%02X", intArray[i])
+                    }
+                    print("hex key: \(keyHex)")
+                    
+                    
+                    let keyHash = SHA256.hash(data: intArray).data
                     hashedKeys.append(keyHash)
                 }
                 self.fetchKeys(for: hashedKeys, with: searchPartyToken, completion: completion)
@@ -236,7 +271,7 @@ class FindMyController: ObservableObject {
           do {
             // Decode the report
             let report = try JSONDecoder().decode(FindMyReportResults.self, from: jsonData)
-              print("Report Results: \(report.results)")
+//              print("Report Results: \(report.results)")
             self.messages[UInt32(messageID)]!.reports += report.results
           } catch {
             print("Failed with error \(error)")
@@ -251,11 +286,27 @@ class FindMyController: ObservableObject {
 
         // Export the reports to the desktop
         var reports = [FindMyReport]()
+        var numReports = 0
+        var numMessages = 0
         for (_, message) in self.messages {
           for report in message.reports {
             reports.append(report)
+            numReports += 1
+//            print("Report: \(report)")
           }
+          numMessages += 1
         }
+          
+          var reportMap = [String: Int]()
+          reports.forEach{ reportMap[$0.id, default:0] += 1 }
+
+          print("Report map: \(reportMap)")
+          print("Number of hashes: \(reportMap.count)")
+          
+          for (report_id, count) in reportMap {
+              print("keyHash: \(report_id)")
+          }
+          
         DispatchQueue.main.async {
             self.decodeReports(messageID: messageID, with: searchPartyToken) { _ in completion(nil) }
           }
@@ -264,7 +315,7 @@ class FindMyController: ObservableObject {
       }
     }
     
-    func fetchKeys(for keyHashes: [String], with searchPartyToken: Data, completion: @escaping (Error?) -> Void) {
+    func fetchKeys(for keys: [Data], with searchPartyToken: Data, completion: @escaping (Error?) -> Void) {
       DispatchQueue.global(qos: .background).async {
         var results = [FindMyReport]()
         let fetchReportGroup = DispatchGroup()
@@ -273,7 +324,7 @@ class FindMyController: ObservableObject {
           fetchReportGroup.enter()
 
 //          let keys = self.messages[messageID]!.keys
-//          let keyHashes = keys.map({ $0.hashedKey.base64EncodedString() })
+          let keyHashes = keys.map({ $0.base64EncodedString() })
 
           // 21 days reduced to 1 day
           let duration: Double = (24 * 60 * 60) * 1
@@ -293,6 +344,7 @@ class FindMyController: ObservableObject {
             do {
               // Decode the report
               let report = try JSONDecoder().decode(FindMyReportResults.self, from: jsonData)
+                //print(report)
 //              self.messages[UInt32(messageID)]!.reports += report.results
                 results += report.results
             } catch {
@@ -309,11 +361,24 @@ class FindMyController: ObservableObject {
 
           // Export the reports to the desktop
           var reports = [FindMyReport]()
-          for (_, message) in self.messages {
-            for report in message.reports {
+          var numReports = 0
+          //for (_, message) in self.messages {
+            for report in results {
               reports.append(report)
+              numReports += 1
             }
-          }
+          //}
+            
+            var reportMap = [String: Int]()
+            reports.forEach{ reportMap[$0.id, default:0] += 1 }
+
+            print("Report map: \(reportMap)")
+            print("Number of hashes found: \(reportMap.count)")
+            
+            for (report_id, count) in reportMap {
+                print("keyHash: \(report_id)")
+            }
+        
 //          DispatchQueue.main.async {
 //              self.decodeReports(messageID: messageID, with: searchPartyToken) { _ in completion(nil) }
 //            }
@@ -334,6 +399,7 @@ class FindMyController: ObservableObject {
       let reports = message!.reports
       let keyMap = message!.keys.reduce(
         into: [String: DataEncodingKey](), { $0[$1.hashedKey.base64EncodedString()] = $1 })
+//        print("keyMap: \(keyMap.count)")
 
       var reportMap = [String: Int]()
       reports.forEach{ reportMap[$0.id, default:0] += 1 }
