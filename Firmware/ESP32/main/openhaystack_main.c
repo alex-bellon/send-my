@@ -34,7 +34,7 @@
 #define BUF_SIZE (1024)
 
 // Set custom modem id before flashing:
-static const uint32_t modem_id = 0xaaaabeef;
+static const uint32_t modem_id = 0x000fbeef;
 
 static const char* LOG_TAG = "findmy_modem";
 
@@ -80,12 +80,12 @@ static esp_ble_adv_params_t ble_adv_params = {
     // Minimum advertising interval for undirected and low duty cycle
     // directed advertising. Range: 0x0020 to 0x4000 Default: N = 0x0800
     // (1.28 second) Time = N * 0.625 msec Time Range: 20 ms to 10.24 sec
-    .adv_int_min        = 0x0020, 
+    .adv_int_min        = 0x0640, 
     // Advertising max interval:
     // Maximum advertising interval for undirected and low duty cycle
     // directed advertising. Range: 0x0020 to 0x4000 Default: N = 0x0800
     // (1.28 second) Time = N * 0.625 msec Time Range: 20 ms to 10.24 sec
-    .adv_int_max        = 0x0022, 
+    .adv_int_max        = 0x0C80, 
     // Advertisement type
     .adv_type           = ADV_TYPE_NONCONN_IND,
     // Use the random address
@@ -334,7 +334,7 @@ void app_main(void)
 
     while (1) {
         ESP_LOGI(LOG_TAG, "Bytes: %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x", data[0], data[1], data[2], data[3], data[4], data[5], data[6], data[7], data[8], data[9]); 
-        send_data_once_blocking(data, sizeof(data) - 1, 3, current_message_id);
+        send_data_once_blocking(data, sizeof(data) - 1, 8, current_message_id);
         vTaskDelay(500);
     }
     esp_ble_gap_stop_advertising();
