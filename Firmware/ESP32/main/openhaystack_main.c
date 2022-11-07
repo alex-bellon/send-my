@@ -24,6 +24,13 @@
 #include "uECC.h"
 
 #include <esp_wifi.h>
+#include <esp_http_server.h>
+#include "esp_system.h"
+#include "esp_event.h"
+#include "esp_netif.h"
+#include "esp_eth.h"
+#include "esp_tls_crypto.h"
+#include <sys/param.h>
 
 #define CHECK_BIT(var,pos) ((var) & (1<<(7-pos)))
 
@@ -61,6 +68,8 @@
 #define ESP_WIFI_SCAN_AUTH_MODE_THRESHOLD WIFI_AUTH_WPA2_PSK
 #endif
 
+#define MAX_HTTP_RECV_BUFFER 512
+#define MAX_HTTP_OUTPUT_BUFFER 2048
 
 /* FreeRTOS event group to signal when we are connected*/
 static EventGroupHandle_t s_wifi_event_group;
@@ -437,9 +446,75 @@ void init_serial() {
     ESP_ERROR_CHECK(uart_set_pin(UART_PORT_NUM, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE, TEST_RTS, TEST_CTS));
 }
 
+static esp_err_t echo_post_handler(httpd_req_t *req)
+{
+    char buf[100];
+    int ret, remaining = req->content_len;
+
+    while (remaining > 0) {
+        /* Read the data for the request */
+        if ((ret = httpd_req_recv(req, buf,
+                        MIN(remaining, sizeof(buf)))) <= 0) {
+            if (ret == HTTPD_SOCK_ERR_TIMEOUT) {
+                /* Retry receiving if timeout occurred */
+                continue;
+            }
+            return ESP_FAIL;
+        }
+
+        /* Send back the same data */
+        httpd_resp_send_chunk(req, buf, ret);
+        remaining -= ret;
+
+        /* Log data received */
+        ESP_LOGI(TAG, "=========== RECEIVED DATA ==========");
+        ESP_LOGI(TAG, "%.*s", ret, buf);
+        ESP_LOGI(TAG, "====================================");
+    }
+
+    // End response
+    httpd_resp_send_chunk(req, NULL, 0);
+    return ESP_OK;
+}
+
+static const httpd_uri_t echo = {
+    .uri       = "/echo",
+    .method    = HTTP_POST,
+    .handler   = echo_post_handler,
+    .user_ctx  = NULL
+};
+
+static httpd_handle_t start_webserver(void)
+{
+    httpd_handle_t server = NULL;
+    httpd_config_t config = HTTPD_DEFAULT_CONFIG();
+    config.lru_purge_enable = true;
+
+    // Start the httpd server
+    ESP_LOGI(TAG, "Starting server on port: '%d'", config.server_port);
+    if (httpd_start(&server, &config) == ESP_OK) {
+        // Set URI handlers
+        ESP_LOGI(TAG, "Registering URI handlers");
+        httpd_register_uri_handler(server, &echo);
+        #if CONFIG_EXAMPLE_BASIC_AUTH
+        httpd_register_basic_auth(server);
+        #endif
+        return server;
+    }
+
+    ESP_LOGI(TAG, "Error starting server!");
+    return NULL;
+}
+
+static esp_err_t stop_webserver(httpd_handle_t server)
+{
+    // Stop the httpd server
+    return httpd_stop(server);
+}
 
 void app_main(void)
 {
+    static httpd_handle_t server = NULL;
     ESP_ERROR_CHECK(nvs_flash_init());
     ESP_ERROR_CHECK(esp_bt_controller_mem_release(ESP_BT_MODE_CLASSIC_BT));
     esp_bt_controller_config_t bt_cfg = BT_CONTROLLER_INIT_CONFIG_DEFAULT();
@@ -463,6 +538,9 @@ void app_main(void)
    
     ESP_LOGI(LOG_TAG, "Entering serial modem mode");
     init_serial();
+
+    server = start_webserver();
+    return;
 
     uint8_t data[] = "HELLOWORLD";
 
