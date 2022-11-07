@@ -120,6 +120,7 @@ uint8_t start_addr[20] = {
 };
 
 uint8_t curr_addr[20];  
+uint32_t current_message_id = 0;
 
 uint32_t swap_uint32( uint32_t val )
 {
@@ -390,8 +391,10 @@ void reset_advertising() {
 
 void send_data_once_blocking(uint8_t* data_to_send, uint32_t len, uint32_t chunk_len, uint32_t msg_id) {
     ESP_LOGI(LOG_TAG, "Data to send (msg_id: %d): %s", msg_id, data_to_send);
+    ESP_LOGI(LOG_TAG, "Length %d", len);
 
     int num_chunks = ((len * 8) / chunk_len);
+    ESP_LOGI(LOG_TAG, "Num chunks %d", num_chunks);
     if ((len * 8) % chunk_len) { num_chunks++; }
     
     uint8_t mask = 0xff >> (8 - chunk_len);
@@ -446,9 +449,10 @@ void init_serial() {
     ESP_ERROR_CHECK(uart_set_pin(UART_PORT_NUM, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE, TEST_RTS, TEST_CTS));
 }
 
-static esp_err_t echo_post_handler(httpd_req_t *req)
+static esp_err_t send_post_handler(httpd_req_t *req)
 {
     char buf[100];
+    uint8_t payload[100];
     int ret, remaining = req->content_len;
 
     while (remaining > 0) {
@@ -470,17 +474,29 @@ static esp_err_t echo_post_handler(httpd_req_t *req)
         ESP_LOGI(TAG, "=========== RECEIVED DATA ==========");
         ESP_LOGI(TAG, "%.*s", ret, buf);
         ESP_LOGI(TAG, "====================================");
-    }
+        
+        ESP_LOGI(TAG, "%d", ret); 
+        
+        int payload_len = ret - 9;
+        memcpy(payload, &buf[7], payload_len); 
+        ESP_LOGI(TAG, "%s", payload);
+        
+        ESP_LOGI(TAG, "Advertising with message ID %d", current_message_id);
+        for (int i = 0; i < 1; i++) {
+            send_data_once_blocking(payload, payload_len, 8, current_message_id);
+        }
+    }    
+    current_message_id++;
 
     // End response
     httpd_resp_send_chunk(req, NULL, 0);
     return ESP_OK;
 }
 
-static const httpd_uri_t echo = {
-    .uri       = "/echo",
+static const httpd_uri_t send = {
+    .uri       = "/send",
     .method    = HTTP_POST,
-    .handler   = echo_post_handler,
+    .handler   = send_post_handler,
     .user_ctx  = NULL
 };
 
@@ -495,7 +511,7 @@ static httpd_handle_t start_webserver(void)
     if (httpd_start(&server, &config) == ESP_OK) {
         // Set URI handlers
         ESP_LOGI(TAG, "Registering URI handlers");
-        httpd_register_uri_handler(server, &echo);
+        httpd_register_uri_handler(server, &send);
         #if CONFIG_EXAMPLE_BASIC_AUTH
         httpd_register_basic_auth(server);
         #endif
@@ -533,22 +549,12 @@ void app_main(void)
 
     ESP_LOGI(TAG, "ESP_WIFI_MODE_STA");
     wifi_init_sta();
-
-    uint32_t current_message_id = 0;
-   
+ 
     ESP_LOGI(LOG_TAG, "Entering serial modem mode");
     init_serial();
 
     server = start_webserver();
-    return;
 
-    uint8_t data[] = "HELLOWORLD";
-
-    while (1) {
-        ESP_LOGI(LOG_TAG, "Bytes: %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x", data[0], data[1], data[2], data[3], data[4], data[5], data[6], data[7], data[8], data[9]); 
-        send_data_once_blocking(data, sizeof(data) - 1, 8, current_message_id);
-        vTaskDelay(500);
-    }
     esp_ble_gap_stop_advertising();
 }
 
