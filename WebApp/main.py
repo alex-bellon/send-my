@@ -7,19 +7,12 @@ port = 1234
 
 class server(BaseHTTPRequestHandler):
     def do_GET(self):
-        content = """<form action="/send" method="POST">
-        <label for="payload">Please enter your payload</label><br>
-        <input type="text" id="payload" name="payload"></input><br>
-        <input type="submit" value="Send!">
-        </form>
-        """
 
         self.send_response(200)
         self.send_header("Content-type", "text/html")
         self.end_headers()
-        self.wfile.write(bytes("<html><head><title>:)</title></head>", "utf-8"))
-        self.wfile.write(bytes(content, "utf-8"))
-        self.wfile.write(bytes("</html>", "utf-8"))
+        content = open("main.html", "rb")
+        self.wfile.write(content.read())
 
     def do_POST(self):
         if self.path == "/send":
@@ -32,18 +25,16 @@ class server(BaseHTTPRequestHandler):
 def send_payload(payload, self):
     print(payload)
 
-    url = "http://:80/send" # TODO get IP
+    url = "http://127.0.0.1:80/send" # TODO get IP
     obj = {"0": payload}
-    r = requests.post(url, json=obj)
-    print(r)
+    #r = requests.post(url, json=obj)
+    #print(r)
 
     self.send_response(200)
     self.send_header("Content-type", "text/html")
     self.end_headers()
-    self.wfile.write(bytes("<html><head><title>:)</title></head>", "utf-8"))
-    self.wfile.write(bytes("<p>Payload sent! Check for it on the other end in a few minutes.</p>", "utf-8"))
-    self.wfile.write(bytes("<button onclick=\"window.location.href='/';\">Click here to send another message</button>", "utf-8"))
-    self.wfile.write(bytes("</html>", "utf-8"))
+    content = open("confirmation.html", "rb")
+    self.wfile.write(content.read())
 
 
 if __name__ == "__main__":
