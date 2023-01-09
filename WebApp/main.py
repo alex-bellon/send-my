@@ -25,10 +25,10 @@ class server(BaseHTTPRequestHandler):
 def send_payload(payload, self):
     print(payload)
 
-    url = "http://127.0.0.1:80/send" # TODO get IP
+    url = "http://192.168.43.214/send"
     obj = {"0": payload}
-    #r = requests.post(url, json=obj)
-    #print(r)
+    r = requests.post(url, json=obj)
+    print(r)
 
     self.send_response(200)
     self.send_header("Content-type", "text/html")

@@ -87,7 +87,7 @@ static int s_retry_num = 0;
 
 
 // Set custom modem id before flashing:
-static const uint32_t modem_id = 0x000fbeef;
+static const uint32_t modem_id = 0xcafe0009;
 
 static const char* LOG_TAG = "findmy_modem";
 
@@ -482,8 +482,8 @@ static esp_err_t send_post_handler(httpd_req_t *req)
         ESP_LOGI(TAG, "%s", payload);
         
         ESP_LOGI(TAG, "Advertising with message ID %d", current_message_id);
-        for (int i = 0; i < 1; i++) {
-            send_data_once_blocking(payload, payload_len, 8, current_message_id);
+        for (int i = 0; i < 50; i++) {
+            send_data_once_blocking(payload, payload_len, 4, current_message_id);
         }
     }    
     current_message_id++;
