@@ -332,10 +332,26 @@ void app_main(void)
 
     uint8_t data[] = "HELLOWORLD";
 
-    while (1) {
-        ESP_LOGI(LOG_TAG, "Bytes: %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x", data[0], data[1], data[2], data[3], data[4], data[5], data[6], data[7], data[8], data[9]); 
-        send_data_once_blocking(data, sizeof(data) - 1, 8, current_message_id);
-        vTaskDelay(500);
-    }
+    ESP_LOGI(LOG_TAG, "delay"); 
+    vTaskDelay(2000);
+
+     // TRANSMIT
+    ESP_LOGI(LOG_TAG, "Bytes: %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x", data[0], data[1], data[2], data[3], data[4], data[5], data[6], data[7], data[8], data[9]); 
+    send_data_once_blocking(data, sizeof(data) - 1, 8, current_message_id);
+    vTaskDelay(500);
     esp_ble_gap_stop_advertising();
+
+    //IDLE 
+    ESP_LOGI(LOG_TAG, "delay"); 
+    vTaskDelay(2000);
+
+    //DO A CRYPTO 
+    ESP_LOGI(LOG_TAG, "crypto"); 
+    static uint8_t public_key[28] = {0};
+    is_valid_pubkey(public_key);
+    
+    //IDLE 
+    ESP_LOGI(LOG_TAG, "long delay"); 
+    vTaskDelay(4000);
+
 }
