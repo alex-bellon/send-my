@@ -83,10 +83,10 @@ class FindMyController: ObservableObject {
     for modemID: UInt32, message messageID: UInt32, startChunk: UInt32, with searchPartyToken: Data, completion: @escaping (Error?) -> Void
     ) {
     
-    var experiment = true
+    var experiment = false
 //  NOTE: start and end indices are
-    let startKeyIndex = 0
-    let endKeyIndex = 10
+    let startKeyIndex = 19000
+    let endKeyIndex =   20000
     
     if experiment {
 //        self.fetchReports(for: messageID, with: searchPartyToken, completion: completion)
@@ -96,40 +96,29 @@ class FindMyController: ObservableObject {
         if var dir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first {
             let fileURL = dir.appendingPathComponent(file)
             
-            var advKeys = [[UInt8]]()
-            advKeys.append([186, 190, 171, 205, 190, 239, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
-            advKeys.append([186, 190, 171, 205, 190, 239, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1])
-            advKeys.append([186, 190, 171, 205, 190, 239, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2])
-            advKeys.append([186, 190, 171, 205, 190, 239, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3])
-            advKeys.append([186, 190, 171, 205, 190, 239, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4])
-            advKeys.append([186, 190, 171, 205, 190, 239, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 5])
-            advKeys.append([186, 190, 171, 205, 190, 239, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 6])
-            advKeys.append([186, 190, 171, 205, 190, 239, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 7])
-            advKeys.append([186, 190, 171, 205, 190, 239, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 8])
-            advKeys.append([186, 190, 171, 205, 190, 239, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 9])
-            
-//            advKeys.append([250, 190, 171, 205, 190, 239, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
-//            advKeys.append([250, 190, 171, 205, 190, 239, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1])
-//            advKeys.append([250, 190, 171, 205, 190, 239, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2])
-//            advKeys.append([250, 190, 171, 205, 190, 239, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3])
-//            advKeys.append([250, 190, 171, 205, 190, 239, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4])
-//            advKeys.append([250, 190, 171, 205, 190, 239, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 5])
-//            advKeys.append([250, 190, 171, 205, 190, 239, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 6])
-//            advKeys.append([250, 190, 171, 205, 190, 239, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 7])
-//            advKeys.append([250, 190, 171, 205, 190, 239, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 8])
-//            advKeys.append([250, 190, 171, 205, 190, 239, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 9])
+//            var advKeys = [[UInt8]]()
+//            advKeys.append([186, 190, 171, 205, 190, 239, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
+//            advKeys.append([186, 190, 171, 205, 190, 239, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1])
+//            advKeys.append([186, 190, 171, 205, 190, 239, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2])
+//            advKeys.append([186, 190, 171, 205, 190, 239, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3])
+//            advKeys.append([186, 190, 171, 205, 190, 239, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4])
+//            advKeys.append([186, 190, 171, 205, 190, 239, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 5])
+//            advKeys.append([186, 190, 171, 205, 190, 239, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 6])
+//            advKeys.append([186, 190, 171, 205, 190, 239, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 7])
+//            advKeys.append([186, 190, 171, 205, 190, 239, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 8])
+//            advKeys.append([186, 190, 171, 205, 190, 239, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 9])
             
             var hashedKeys = [Data]()
             //reading
             do {
 //                let rm_char: Set<Character> = [" "]
-//                let text = try String(contentsOf: fileURL, encoding: .utf8)
-//                var strings = text.components(separatedBy: .newlines)
+                let text = try String(contentsOf: fileURL, encoding: .utf8)
+                var strings = text.components(separatedBy: .newlines)
                 for i in startKeyIndex..<endKeyIndex {
-//                    var stringArray = strings[i].split(separator: " ")
-//                    let intArray = stringArray.map{ UInt8($0)! }
-//                    print(intArray)
-                    let intArray = advKeys[i]
+                    var stringArray = strings[i].split(separator: " ")
+                    let intArray = stringArray.map{ UInt8($0)! }
+                    print(intArray)
+//                    let intArray = advKeys[i]
                     //print(intArray)
                     
                     var keyHex = String(format:"%02X", intArray[0])
@@ -303,9 +292,9 @@ class FindMyController: ObservableObject {
           print("Report map: \(reportMap)")
           print("Number of hashes: \(reportMap.count)")
           
-          for (report_id, count) in reportMap {
-              print("keyHash: \(report_id)")
-          }
+//          for (report_id, count) in reportMap {
+//              print("keyHash: \(report_id)")
+//          }
           
         DispatchQueue.main.async {
             self.decodeReports(messageID: messageID, with: searchPartyToken) { _ in completion(nil) }
@@ -375,9 +364,9 @@ class FindMyController: ObservableObject {
             print("Report map: \(reportMap)")
             print("Number of hashes found: \(reportMap.count)")
             
-            for (report_id, count) in reportMap {
-                print("keyHash: \(report_id)")
-            }
+//            for (report_id, count) in reportMap {
+//                print("keyHash: \(report_id)")
+//            }
         
 //          DispatchQueue.main.async {
 //              self.decodeReports(messageID: messageID, with: searchPartyToken) { _ in completion(nil) }
@@ -423,7 +412,8 @@ class FindMyController: ObservableObject {
                   let val_hi = startKey[(Int(((k.index + 1) * cLen)) / 8) - 1] >> leftover
                   startVal = (val_lo ^ val_hi) & mask
               } else {
-                  startVal = (startKey[(Int(((k.index + 1) * cLen)) / 8) - 1] >> (leftover - cLen)) & mask
+                  print((Int(((k.index + 1) * cLen)) / 8))
+                  startVal = (startKey[(Int(((k.index + 1) * cLen)) / 8)] >> (leftover - cLen)) & mask
               }
               
               if (startVal != k.value) {

@@ -51,10 +51,8 @@ struct OFFetchReportsMainView: View {
             self.findMyController.clearMessages()
             self.loadMessage(modemID: parsedModemID, messageID: UInt32(0), chunkLength: parsedChunkLength)
             
-            let timeInterval = NSDate().timeIntervalSince1970
-            print("Unix Time: \(timeInterval)")
-            
-            let genKeys = true
+            let numKeys = 256
+            let genKeys = false
             
             
             if genKeys {
@@ -65,18 +63,28 @@ struct OFFetchReportsMainView: View {
                 var count: UInt16 = 0
                 var validCounter: UInt16 = 0
                 var keyTest = [UInt8]()
+                
+                let timeInterval_0 = NSDate().timeIntervalSince1970
+                
                 while count < 65535 {
                     repeat {
                       keyTest = staticPrefix + byteArray(from: modemID)
                       keyTest += byteArray(from: validCounter) + zeroPadding + byteArray(from: count)
                       validCounter += 1
                     } while (BoringSSL.isPublicKeyValid(Data(keyTest)) == 0 && validCounter < UInt16.max)
-                    var hexKeyTest = String(format:"%02X", keyTest[0])
-                    for i in 1..<keyTest.count{
-                        hexKeyTest += " " + String(format:"%02X", keyTest[i])
+//                    var decKeyTest = String(keyTest[0])
+//                    var hexKeyTest = String(format:"%02X", keyTest[0])
+//                    for i in 1..<keyTest.count{
+//                        decKeyTest += " " + String(keyTest[i])
+//                        hexKeyTest += " " + String(format:"%02X", keyTest[i])
+//                    }
+                    if count == (numKeys*5 - 1) {
+                        let timeInterval_1 = NSDate().timeIntervalSince1970
+                        let timeDiff = timeInterval_1 - timeInterval_0
+                        let avgTimeDiff = timeDiff / 5
+                        print("For \(numKeys) keys, average time is \(avgTimeDiff)")
                     }
-                    print(hexKeyTest)
-//                    print(keyTest)
+//                    print(decKeyTest)
                     count += 1
                     validCounter = 0
                 }
