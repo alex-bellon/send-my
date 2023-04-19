@@ -16,12 +16,14 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/event_groups.h"
+#include "freertos/timers.h"
 
 #include "driver/uart.h"
 #include "driver/gpio.h"
 #include "sdkconfig.h"
 
 #include "uECC.h"
+#include "w25q64.h"
 
 #include <esp_wifi.h>
 
@@ -40,6 +42,8 @@
 #define EXAMPLE_ESP_WIFI_PASS      "ilikecode"
 #define EXAMPLE_ESP_MAXIMUM_RETRY  5
 
+// #define TAG "W25Q64"
+#define PAYLOADSIZE 16
 
 #if CONFIG_ESP_WIFI_AUTH_OPEN
 #define ESP_WIFI_SCAN_AUTH_MODE_THRESHOLD WIFI_AUTH_OPEN
@@ -440,6 +444,21 @@ void init_serial() {
 
 void app_main(void)
 {
+    // initializing flash device
+    W25Q64_t dev;
+    uint16_t count = 0;
+    uint8_t payload_data[PAYLOADSIZE];
+
+    W25Q64_init(&dev);
+
+    // erase all on startup; this takes a while
+	W25Q64_eraseAll(&dev, true);
+
+    // initialize first address to write to, which is secto_no = 1, inaddr = 0
+    uint8_t modemID_arr[4];
+	memcpy(modemID_arr, &modem_id, 4);
+    int16_t init_result = W25Q32_initLogging(&dev, modemID_arr);
+
     ESP_ERROR_CHECK(nvs_flash_init());
     ESP_ERROR_CHECK(esp_bt_controller_mem_release(ESP_BT_MODE_CLASSIC_BT));
     esp_bt_controller_config_t bt_cfg = BT_CONTROLLER_INIT_CONFIG_DEFAULT();
@@ -464,12 +483,21 @@ void app_main(void)
     ESP_LOGI(LOG_TAG, "Entering serial modem mode");
     init_serial();
 
-    uint8_t data[] = "HELLOWORLD";
+    uint8_t data[2];
 
     while (1) {
+        memset(payload_data, 0, PAYLOADSIZE);
+        uint32_t time = xTaskGetTickCount();
+        TagAlongPayload(payload_data, 0, count, modem_id, 0, time);
+
+        // data = count;
+        memcpy(data, &count, 2);
+
         ESP_LOGI(LOG_TAG, "Bytes: %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x", data[0], data[1], data[2], data[3], data[4], data[5], data[6], data[7], data[8], data[9]); 
-        send_data_once_blocking(data, sizeof(data) - 1, 8, current_message_id);
+        send_data_once_blocking(data, sizeof(data) - 1, 160, current_message_id);
         vTaskDelay(500);
+
+        // count++;
     }
     esp_ble_gap_stop_advertising();
 }

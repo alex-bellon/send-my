@@ -685,6 +685,7 @@ int16_t W25Q32_writePayload(W25Q64_t *dev, uint8_t *buf, int16_t n)
 	W25Q32_readLast(addr_buf, &sect_no, &inaddr, &modemID); // get the address to write at
 
 	W25Q64_eraseSector(dev, 0, true);
+	// if sector == 0 case
 
 	printf("Section num: %u\n", sect_no);
 	printf("inaddr: %u\n", inaddr);
