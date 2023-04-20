@@ -13,6 +13,13 @@
 #define TAG "W25Q64"
 #define _DEBUG_	0
 
+#define CONFIG_GPIO_RANGE_MAX 33
+#define CONFIG_MISO_GPIO 19
+#define CONFIG_MOSI_GPIO 23
+#define CONFIG_SCLK_GPIO 18
+#define CONFIG_CS_GPIO 5
+#define CONFIG_SPI2_HOST 1
+
 // SPI Stuff
 #if CONFIG_SPI2_HOST
 #define HOST_ID SPI2_HOST
@@ -547,8 +554,8 @@ int16_t W25Q64_pageWrite(W25Q64_t * dev, uint16_t sect_no, uint16_t inaddr, uint
 // record modemID (4 bytes)
 int16_t W25Q32_initLogging(W25Q64_t * dev, uint8_t * modemID){
 	uint16_t sect_no = 1;
-	uint16_t inaddr = 0;
-	uint16_t n = 8; //data is going to be 10 bytes long
+	uint16_t inaddr = 4000;
+	uint16_t n = 8; //data is going to be 8 bytes long
 
 	uint8_t data[8];
 	uint8_t buf[2];
@@ -577,6 +584,9 @@ int16_t W25Q32_initLogging(W25Q64_t * dev, uint8_t * modemID){
 
 // "erase" is an 8-byte array that needs to erase the first 8 bytes (make all f's) in order to write to it
 int16_t W25Q32_writeNextAddr(W25Q64_t * dev, uint16_t sect_no, uint16_t inaddr, uint32_t modemID){
+	// ESP_LOGI(TAG, "Next sect_no: %d", sect_no);
+	// ESP_LOGI(TAG, "Next inaddr: %d", inaddr);
+	
 	uint8_t data[8];
 	uint8_t buf[4];
 
@@ -672,10 +682,6 @@ void TagAlongPayload(uint8_t * data, int16_t empty_0, uint16_t count, uint32_t m
 //
 int16_t W25Q32_writePayload(W25Q64_t *dev, uint8_t *buf, int16_t n)
 {
-	// reserve sect_no 0x00 and inaddr 0x00?? init first
-	// watchdog timer too
-	// TEST NEW METHOD
-	// this needs to be changed now to account for the data size and data offset (from what was previously written)
 	uint16_t sect_no, inaddr;
 	uint32_t modemID;
 	uint8_t addr_buf[8];
@@ -683,9 +689,6 @@ int16_t W25Q32_writePayload(W25Q64_t *dev, uint8_t *buf, int16_t n)
 	memset(addr_buf, 0, 8);
 	W25Q64_read(dev, 0, addr_buf, 8);
 	W25Q32_readLast(addr_buf, &sect_no, &inaddr, &modemID); // get the address to write at
-
-	W25Q64_eraseSector(dev, 0, true);
-	// if sector == 0 case
 
 	printf("Section num: %u\n", sect_no);
 	printf("inaddr: %u\n", inaddr);
@@ -708,10 +711,12 @@ int16_t W25Q32_writePayload(W25Q64_t *dev, uint8_t *buf, int16_t n)
 	inaddr += n;
 
 	// inaddr overflow; increment sect_no
-	if (inaddr == 4095){
+	if (inaddr >= 4095){
 		sect_no++;
 		inaddr = 0;
 	}
+
+	W25Q64_eraseSector(dev, 0, true);
 
 	//write new addr
 	int16_t write_result = W25Q32_writeNextAddr(dev, sect_no, inaddr, modemID);
