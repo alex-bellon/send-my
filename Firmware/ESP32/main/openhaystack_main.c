@@ -87,7 +87,7 @@ static int s_retry_num = 0;
 
 
 // Set custom modem id before flashing:
-static const uint32_t modem_id = 0xcafe0009;
+static uint32_t modem_id = 0xcafe0000;
 
 static const char* LOG_TAG = "findmy_modem";
 
@@ -487,6 +487,7 @@ static esp_err_t send_post_handler(httpd_req_t *req)
         }
     }    
     current_message_id++;
+    modem_id++;
 
     // End response
     httpd_resp_send_chunk(req, NULL, 0);
