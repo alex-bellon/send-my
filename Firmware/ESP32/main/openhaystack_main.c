@@ -25,8 +25,6 @@
 #include "uECC.h"
 #include "w25q64.h"
 
-#include <esp_wifi.h>
-
 #define CHECK_BIT(var,pos) ((var) & (1<<(7-pos)))
 
 #define TEST_RTS (18)
@@ -38,49 +36,9 @@
 
 #define BUF_SIZE (1024)
 
-#define EXAMPLE_ESP_WIFI_SSID      "pascal"
-#define EXAMPLE_ESP_WIFI_PASS      "ilikecode"
-#define EXAMPLE_ESP_MAXIMUM_RETRY  5
-
 // #define TAG "W25Q64"
 #define PAYLOADSIZE 16
 #define READNUMBYTES 256
-
-#if CONFIG_ESP_WIFI_AUTH_OPEN
-#define ESP_WIFI_SCAN_AUTH_MODE_THRESHOLD WIFI_AUTH_OPEN
-#elif CONFIG_ESP_WIFI_AUTH_WEP
-#define ESP_WIFI_SCAN_AUTH_MODE_THRESHOLD WIFI_AUTH_WEP
-#elif CONFIG_ESP_WIFI_AUTH_WPA_PSK
-#define ESP_WIFI_SCAN_AUTH_MODE_THRESHOLD WIFI_AUTH_WPA_PSK
-#elif CONFIG_ESP_WIFI_AUTH_WPA2_PSK
-#define ESP_WIFI_SCAN_AUTH_MODE_THRESHOLD WIFI_AUTH_WPA2_PSK
-#elif CONFIG_ESP_WIFI_AUTH_WPA_WPA2_PSK
-#define ESP_WIFI_SCAN_AUTH_MODE_THRESHOLD WIFI_AUTH_WPA_WPA2_PSK
-#elif CONFIG_ESP_WIFI_AUTH_WPA3_PSK
-#define ESP_WIFI_SCAN_AUTH_MODE_THRESHOLD WIFI_AUTH_WPA3_PSK
-#elif CONFIG_ESP_WIFI_AUTH_WPA2_WPA3_PSK
-#define ESP_WIFI_SCAN_AUTH_MODE_THRESHOLD WIFI_AUTH_WPA2_WPA3_PSK
-#elif CONFIG_ESP_WIFI_AUTH_WAPI_PSK
-#define ESP_WIFI_SCAN_AUTH_MODE_THRESHOLD WIFI_AUTH_WAPI_PSK
-#else
-#define ESP_WIFI_SCAN_AUTH_MODE_THRESHOLD WIFI_AUTH_WPA2_PSK
-#endif
-
-
-/* FreeRTOS event group to signal when we are connected*/
-static EventGroupHandle_t s_wifi_event_group;
-
-
-/* The event group allows multiple bits for each event, but we only care about two events:
- * - we are connected to the AP with an IP
- * - we failed to connect after the maximum amount of retries */
-#define WIFI_CONNECTED_BIT BIT0
-#define WIFI_FAIL_BIT      BIT1
-
-static const char *TAG = "wifi station";
-
-static int s_retry_num = 0;
-
 
 // Set custom modem id before flashing:
 static const uint32_t modem_id = 0x000fbeef;
@@ -176,28 +134,6 @@ static void esp_gap_cb(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *par
     }
 }
 
-static void event_handler(void* arg, esp_event_base_t event_base,
-                                int32_t event_id, void* event_data)
-{
-    if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_START) {
-        esp_wifi_connect();
-    } else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_DISCONNECTED) {
-        if (s_retry_num < EXAMPLE_ESP_MAXIMUM_RETRY) {
-            esp_wifi_connect();
-            s_retry_num++;
-            ESP_LOGI(TAG, "retry to connect to the AP");
-        } else {
-            xEventGroupSetBits(s_wifi_event_group, WIFI_FAIL_BIT);
-        }
-        ESP_LOGI(TAG,"connect to the AP fail");
-    } else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP) {
-        ip_event_got_ip_t* event = (ip_event_got_ip_t*) event_data;
-        ESP_LOGI(TAG, "got ip:" IPSTR, IP2STR(&event->ip_info.ip));
-        s_retry_num = 0;
-        xEventGroupSetBits(s_wifi_event_group, WIFI_CONNECTED_BIT);
-    }
-}
-
 int is_valid_pubkey(uint8_t *pub_key_compressed) {
    uint8_t with_sign_byte[29];
    uint8_t pub_key_uncompressed[128];
@@ -245,7 +181,8 @@ void copy_2b_big_endian(uint8_t *dst, uint8_t *src) {
 
 // index as first part of payload to have an often changing MAC address
 // [2 byte magic] [4 byte modem_id] [2 byte tweak] [20 byte payload]
-void set_addr_and_payload_for_byte(uint32_t index, uint32_t msg_id, uint8_t val, uint32_t chunk_len) {
+void set_addr_and_payload_for_byte(uint8_t* data, uint32_t len) {
+
     uint16_t valid_key_counter = 0;
     static uint8_t public_key[28] = {0};
     public_key[0] = 0xBA; // magic value
@@ -253,31 +190,10 @@ void set_addr_and_payload_for_byte(uint32_t index, uint32_t msg_id, uint8_t val,
     copy_4b_big_endian(&public_key[2], &modem_id);
     public_key[6] = 0x00;
     public_key[7] = 0x00;
-    if (index) {
-        memcpy(&public_key[8], &curr_addr, 20);
-    } else {
-        memcpy(&public_key[8], &start_addr, 20);
-    }
 
-    ESP_LOGI(LOG_TAG, "mod: %d", (8 * chunk_len * (20 / chunk_len)));
-
-    uint32_t offset = (chunk_len * (index + 1)) % (8 * chunk_len * (20 / chunk_len)); // mod the offset correctly
-    uint32_t remain = 8 - ((chunk_len * index) % 8);
-
-    if (remain == chunk_len) {
-        uint8_t xor_val = val << (8 - remain);
-        public_key[28 - (offset/8)] ^= xor_val;
-    } else if (remain > chunk_len) {
-        uint8_t xor_val = val << (8 - remain);
-        public_key[28 - ((offset/8) + 1)] ^= xor_val;
-    } else { 
-        uint8_t xor_val_lo = val << (8 - remain);
-        uint8_t xor_val_hi = val >> remain;
-        public_key[28 - ((offset/8))] ^= xor_val_lo;
-        public_key[28 - ((offset/8) + 1)] ^= xor_val_hi;
-    }
-
-    memcpy(&curr_addr, &public_key[8], 20);
+    for (int i = 0; i < len; i++) {
+        public_key[28 - i] = data[len - 1 - i];
+    }    
 
     do {
       copy_2b_big_endian(&public_key[6], &valid_key_counter);
@@ -321,48 +237,10 @@ void reset_advertising() {
     }
 }
 
-void send_data_once_blocking(uint8_t* data_to_send, uint32_t len, uint32_t chunk_len, uint32_t msg_id) {
-    ESP_LOGI(LOG_TAG, "Data to send (msg_id: %d): %s", msg_id, data_to_send);
-
-    int num_chunks = ((len * 8) / chunk_len);
-    if ((len * 8) % chunk_len) { num_chunks++; }
-
-
-    uint8_t mask = 0xff >> (8 - chunk_len);
-
-    // uint8_t* data = data_to_send;
-    uint32_t end = len - 1;   
-
-    for (int chunk_i = 0; chunk_i < num_chunks; chunk_i++) {
-        uint8_t val = 0;
-
-        uint32_t offset = chunk_i * chunk_len;
-        uint32_t remain = offset % 8;
-
-        
-        bool overlap = ((chunk_len * (chunk_i + 1)) / 8) != ((chunk_len * chunk_i) / 8);
-    
-        // ESP_LOGI(LOG_TAG, "check 2");
-
-        if (!overlap) {
-            val = data_to_send[end - (offset/8)] >> remain;
-            val &= mask;
-        } else { 
-            uint8_t val_hi = data_to_send[end - (offset/8) - 1];
-            val_hi = val_hi << (8 - remain);
-            val_hi &= mask; 
-            uint8_t val_lo = data_to_send[end - (offset/8)];
-            val_lo = val_lo >> remain;
-            val_lo &= mask;
-            val = val_lo ^ val_hi;
-        }
-
-
-        set_addr_and_payload_for_byte(chunk_i, msg_id, val, chunk_len);
-        ESP_LOGD(LOG_TAG, "    resetting. Will now use device address: %02x %02x %02x %02x %02x %02x", rnd_addr[0], rnd_addr[1], rnd_addr[2], rnd_addr[3], rnd_addr[4], rnd_addr[5]);
-        reset_advertising();
-        vTaskDelay(2);    
-    }
+void send_data_once_blocking(uint8_t* data_to_send, uint32_t len) {
+ 
+    set_addr_and_payload_for_byte(data_to_send, len);
+    ESP_LOGD(LOG_TAG, "    resetting. Will now use device address: %02x %02x %02x %02x %02x %02x", rnd_addr[0], rnd_addr[1], rnd_addr[2], rnd_addr[3], rnd_addr[4], rnd_addr[5]);
     esp_ble_gap_stop_advertising();
 }
 
@@ -432,7 +310,6 @@ void dump(uint8_t *dt, int n)
 
 void app_main(void)
 {
-
     W25Q64_t dev;
 	W25Q64_init(&dev);
 
@@ -441,38 +318,38 @@ void app_main(void)
 	esp_err_t ret;
 	ret = W25Q64_readStatusReg1(&dev, &reg1);
 	if (ret != ESP_OK) {
-		ESP_LOGE(TAG, "readStatusReg1 fail %d",ret);
+		ESP_LOGE(LOG_TAG, "readStatusReg1 fail %d",ret);
 		while(1) { vTaskDelay(1); }
 	} 
-	ESP_LOGI(TAG, "readStatusReg1 : %x", reg1);
+	ESP_LOGI(LOG_TAG, "readStatusReg1 : %x", reg1);
 	
 	// Get Status Register2
 	uint8_t reg2;
 	ret = W25Q64_readStatusReg2(&dev, &reg2);
 	if (ret != ESP_OK) {
-		ESP_LOGE(TAG, "readStatusReg2 fail %d",ret);
+		ESP_LOGE(LOG_TAG, "readStatusReg2 fail %d",ret);
 		while(1) { vTaskDelay(1); }
 	}
-	ESP_LOGI(TAG, "readStatusReg2 : %x", reg2);
+	ESP_LOGI(LOG_TAG, "readStatusReg2 : %x", reg2);
 
 	// Get Unique ID
 	uint8_t uid[8];
 	ret = W25Q64_readUniqieID(&dev, uid);
 	if (ret != ESP_OK) {
-		ESP_LOGE(TAG, "readUniqieID fail %d",ret);
+		ESP_LOGE(LOG_TAG, "readUniqieID fail %d",ret);
 		while(1) { vTaskDelay(1); }
 	}
-	ESP_LOGI(TAG, "readUniqieID : %x-%x-%x-%x-%x-%x-%x-%x",
+	ESP_LOGI(LOG_TAG, "readUniqieID : %x-%x-%x-%x-%x-%x-%x-%x",
 		 uid[0], uid[1], uid[2], uid[3], uid[4], uid[5], uid[6], uid[7]);
 
 	// Get JEDEC ID
 	uint8_t jid[3];
 	ret = W25Q64_readManufacturer(&dev, jid);
 	if (ret != ESP_OK) {
-		ESP_LOGE(TAG, "readManufacturer fail %d",ret);
+		ESP_LOGE(LOG_TAG, "readManufacturer fail %d",ret);
 		while(1) { vTaskDelay(1); }
 	}
-	ESP_LOGI(TAG, "readManufacturer : %x-%x-%x",
+	ESP_LOGI(LOG_TAG, "readManufacturer : %x-%x-%x",
 		 jid[0], jid[1], jid[2]);
 
     uint8_t payload_data[PAYLOADSIZE];
@@ -556,13 +433,14 @@ void app_main(void)
         // data = count;
         memcpy(data, &count, 2);
 
-        ESP_LOGI(LOG_TAG, "Bytes: %02x %02x", data[0], data[1]);
-        send_data_once_blocking(data, sizeof(data) - 1, 16, current_message_id);
+        ESP_LOGI(LOG_TAG, "data: %02x %02x", data[1], data[0]);
+        ESP_LOGI(LOG_TAG, "count: %d", count);
+        send_data_once_blocking(data, sizeof(data)); // don't need to subtract one because we're not using strings anymore
         // vTaskDelay(1000);
-        vTaskDelay(10000);
+        vTaskDelay(1000);
 
         count++;
-
+        
         // debugging!!
         memset(rbuf, 0, READNUMBYTES);
         printf("fast read\n");
