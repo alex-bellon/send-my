@@ -436,8 +436,7 @@ void app_main(void)
         ESP_LOGI(LOG_TAG, "data: %02x %02x", data[1], data[0]);
         ESP_LOGI(LOG_TAG, "count: %d", count);
         send_data_once_blocking(data, sizeof(data)); // don't need to subtract one because we're not using strings anymore
-        // vTaskDelay(1000);
-        vTaskDelay(1000);
+        vTaskDelay(10000);
 
         count++;
         
