@@ -27,6 +27,7 @@
 		1F701E91264202B200B0C3A9 /* AppleAccountData.m in Sources */ = {isa = PBXBuildFile; fileRef = 1F701E8D264202B200B0C3A9 /* AppleAccountData.m */; };
 		1F701E92264202B200B0C3A9 /* Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = 1F701E8E264202B200B0C3A9 /* Info.plist */; };
 		1F701E93264202B200B0C3A9 /* ALTAnisetteData.m in Sources */ = {isa = PBXBuildFile; fileRef = 1F701E8F264202B200B0C3A9 /* ALTAnisetteData.m */; };
+		5A00078329F9CB7700FEBE59 /* DecryptReports.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A00078229F9CB7700FEBE59 /* DecryptReports.swift */; };
 		782AC6A125F0DF3000554BF4 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 782AC6A025F0DF3000554BF4 /* AppDelegate.swift */; };
 		782AC6A525F0DF3100554BF4 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 782AC6A425F0DF3100554BF4 /* Assets.xcassets */; };
 		782AC6A825F0DF3100554BF4 /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 782AC6A725F0DF3100554BF4 /* Preview Assets.xcassets */; };
@@ -59,6 +60,7 @@
 		1F701E8D264202B200B0C3A9 /* AppleAccountData.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = AppleAccountData.m; sourceTree = "<group>"; };
 		1F701E8E264202B200B0C3A9 /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		1F701E8F264202B200B0C3A9 /* ALTAnisetteData.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = ALTAnisetteData.m; sourceTree = "<group>"; };
+		5A00078229F9CB7700FEBE59 /* DecryptReports.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DecryptReports.swift; sourceTree = "<group>"; };
 		782AC69E25F0DF3000554BF4 /* OFFetchReports.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = OFFetchReports.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		782AC6A025F0DF3000554BF4 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		782AC6A425F0DF3100554BF4 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -163,6 +165,7 @@
 				782AC6D525F0E3FE00554BF4 /* ReportsFetcher */,
 				782AC6CF25F0E3F600554BF4 /* FindMyController.swift */,
 				782AC6D025F0E3F600554BF4 /* Models.swift */,
+				5A00078229F9CB7700FEBE59 /* DecryptReports.swift */,
 			);
 			path = FindMy;
 			sourceTree = "<group>";
@@ -301,6 +304,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				5A00078329F9CB7700FEBE59 /* DecryptReports.swift in Sources */,
 				782AC6B325F0DF7C00554BF4 /* OFFetchReportsMainView.swift in Sources */,
 				782AC6D825F0E3FE00554BF4 /* ReportsFetcher.m in Sources */,
 				1F701E91264202B200B0C3A9 /* AppleAccountData.m in Sources */,

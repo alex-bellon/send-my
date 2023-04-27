@@ -135,7 +135,7 @@
     };
     NSData *httpBody = [NSJSONSerialization dataWithJSONObject:query options:0 error:nil];
         
-    //NSLog(@"Query : %@",query);
+    NSLog(@"Query : %@",query);
     NSString *authKey = @"authorization";
     NSData *securityToken = searchPartyToken;
     NSString *appleId = [self fetchAppleAccountId];
