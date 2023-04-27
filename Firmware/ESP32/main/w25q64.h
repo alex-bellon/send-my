@@ -67,6 +67,7 @@ void TagAlongPayload(uint8_t * data, int16_t empty_0, uint16_t count, uint32_t m
 int16_t W25Q64_pageWrite(W25Q64_t * dev, uint16_t sect_no, uint16_t inaddr, uint8_t* buf, int16_t n);
 int16_t W25Q32_writeNextAddr(W25Q64_t * dev, uint16_t sect_no, uint16_t inaddr, uint32_t modemID);
 int16_t W25Q32_writePayload(W25Q64_t *dev, uint8_t *buf, int16_t n);
+void TagAlongReadMemory(W25Q64_t * dev);
 
 #endif /* MAIN_W25Q64_H_ */
 

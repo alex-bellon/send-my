@@ -83,7 +83,7 @@ static int s_retry_num = 0;
 
 
 // Set custom modem id before flashing:
-static const uint32_t modem_id = 0x000fbeef;
+static const uint32_t modem_id = 0xd3ad0001;
 
 static const char* LOG_TAG = "findmy_modem";
 
@@ -529,7 +529,7 @@ void app_main(void)
     uint8_t rbuf[READNUMBYTES];
     
     // for reading the first sector
-    uint32_t addr = 2;
+    uint32_t addr = 1;
 	addr<<=12;
 	addr += 0;
     int len;
@@ -559,7 +559,7 @@ void app_main(void)
         ESP_LOGI(LOG_TAG, "Bytes: %02x %02x", data[0], data[1]);
         send_data_once_blocking(data, sizeof(data) - 1, 16, current_message_id);
         // vTaskDelay(1000);
-        vTaskDelay(10000);
+        vTaskDelay(15000);
 
         count++;
 

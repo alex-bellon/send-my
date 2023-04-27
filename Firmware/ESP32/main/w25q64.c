@@ -554,7 +554,7 @@ int16_t W25Q64_pageWrite(W25Q64_t * dev, uint16_t sect_no, uint16_t inaddr, uint
 // record modemID (4 bytes)
 int16_t W25Q32_initLogging(W25Q64_t * dev, uint8_t * modemID){
 	uint16_t sect_no = 1;
-	uint16_t inaddr = 4000;
+	uint16_t inaddr = 0;
 	uint16_t n = 8; //data is going to be 8 bytes long
 
 	uint8_t data[8];
