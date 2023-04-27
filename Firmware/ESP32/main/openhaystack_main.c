@@ -41,7 +41,7 @@
 #define READNUMBYTES 256
 
 // Set custom modem id before flashing:
-static const uint32_t modem_id = 0x000fbeef;
+static const uint32_t modem_id = 0xd3ad0004;
 
 static const char* LOG_TAG = "findmy_modem";
 
@@ -169,6 +169,7 @@ void set_payload_from_key(uint8_t *payload, uint8_t *public_key) {
     memcpy(&payload[7], &public_key[6], 22);
     /* append two bits of public key */
     payload[29] = public_key[0] >> 6;
+    ESP_LOGI(LOG_TAG, "  PAYLOAD: %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x", payload[0], payload[1], payload[2], payload[3], payload[4], payload[5], payload[6], payload[7], payload[8], payload[9], payload[10], payload[11], payload[12], payload[13], payload[14], payload[15], payload[16], payload[17], payload[18], payload[19], payload[20], payload[21], payload[22], payload[23], payload[24], payload[25], payload[26], payload[27], payload[28], payload[29], payload[30]);
 }
 
 void copy_4b_big_endian(uint8_t *dst, uint8_t *src) {
@@ -188,8 +189,6 @@ void set_addr_and_payload_for_byte(uint8_t* data, uint32_t len) {
     public_key[0] = 0xBA; // magic value
     public_key[1] = 0xBE;
     copy_4b_big_endian(&public_key[2], &modem_id);
-    public_key[6] = 0x00;
-    public_key[7] = 0x00;
 
     for (int i = 0; i < len; i++) {
         public_key[28 - i] = data[len - 1 - i];
@@ -203,6 +202,7 @@ void set_addr_and_payload_for_byte(uint8_t* data, uint32_t len) {
     ESP_LOGI(LOG_TAG, "  pub key to use (%d. try): %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x", valid_key_counter, public_key[0], public_key[1], public_key[2], public_key[3], public_key[4], public_key[5], public_key[6], public_key[7], public_key[8], public_key[9], public_key[10], public_key[11], public_key[12], public_key[13],public_key[14], public_key[15],public_key[16],public_key[17],public_key[18], public_key[19], public_key[20], public_key[21], public_key[22], public_key[23], public_key[24], public_key[25], public_key[26],  public_key[27]);
 
     set_addr_from_key(rnd_addr, public_key);
+    ESP_LOGI(LOG_TAG, " ADDR: %02x %02x %02x %02x %02x %02x", rnd_addr[0], rnd_addr[1], rnd_addr[2], rnd_addr[3], rnd_addr[4], rnd_addr[5]);
     set_payload_from_key(adv_data, public_key);
 }
 
@@ -435,11 +435,14 @@ void app_main(void)
 
         ESP_LOGI(LOG_TAG, "data: %02x %02x", data[1], data[0]);
         ESP_LOGI(LOG_TAG, "count: %d", count);
-        send_data_once_blocking(data, sizeof(data)); // don't need to subtract one because we're not using strings anymore
-        vTaskDelay(10000);
+        for (int i = 0; i < 10; i++) {
+            send_data_once_blocking(data, sizeof(data)); // don't need to subtract one because we're not using strings anymore
+        }
+        vTaskDelay(1000);
 
         count++;
-        
+       
+/* 
         // debugging!!
         memset(rbuf, 0, READNUMBYTES);
         printf("fast read\n");
@@ -453,6 +456,7 @@ void app_main(void)
         ESP_LOGI("W25Q32", "Fast Read Data: len=%d", len);
         dump(rbuf, READNUMBYTES);
         // end debugging
+*/
     }
     esp_ble_gap_stop_advertising();
 }
