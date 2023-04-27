@@ -482,6 +482,9 @@ void app_main(void)
     uint8_t addr_buf[8];
 
     // erase all on startup; this takes a while
+    // THIS NEEDS TO CHANGE!!!
+    // erase and init should be in a different file
+    //just read first address
 	W25Q64_eraseAll(&dev, true);
 
     // initialize first address to write to, which is secto_no = 1, inaddr = 0
