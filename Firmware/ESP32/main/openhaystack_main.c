@@ -41,7 +41,7 @@
 #define READNUMBYTES 256
 
 // Set custom modem id before flashing:
-static const uint32_t modem_id = 0xd3ad0004;
+static const uint32_t modem_id = 0xcaca0005;
 
 static const char* LOG_TAG = "findmy_modem";
 
@@ -74,6 +74,8 @@ uint8_t start_addr[20] = {
 };
 
 uint8_t curr_addr[20];  
+
+uint8_t data[2];
 
 uint32_t swap_uint32( uint32_t val )
 {
@@ -180,32 +182,6 @@ void copy_2b_big_endian(uint8_t *dst, uint8_t *src) {
     dst[0] = src[1]; dst[1] = src[0];
 }
 
-// index as first part of payload to have an often changing MAC address
-// [2 byte magic] [4 byte modem_id] [2 byte tweak] [20 byte payload]
-void set_addr_and_payload_for_byte(uint8_t* data, uint32_t len) {
-
-    uint16_t valid_key_counter = 0;
-    static uint8_t public_key[28] = {0};
-    public_key[0] = 0xBA; // magic value
-    public_key[1] = 0xBE;
-    copy_4b_big_endian(&public_key[2], &modem_id);
-
-    for (int i = 0; i < len; i++) {
-        public_key[28 - i] = data[len - 1 - i];
-    }    
-
-    do {
-      copy_2b_big_endian(&public_key[6], &valid_key_counter);
-	    valid_key_counter++;
-    } while (!is_valid_pubkey(public_key));
-
-    ESP_LOGI(LOG_TAG, "  pub key to use (%d. try): %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x", valid_key_counter, public_key[0], public_key[1], public_key[2], public_key[3], public_key[4], public_key[5], public_key[6], public_key[7], public_key[8], public_key[9], public_key[10], public_key[11], public_key[12], public_key[13],public_key[14], public_key[15],public_key[16],public_key[17],public_key[18], public_key[19], public_key[20], public_key[21], public_key[22], public_key[23], public_key[24], public_key[25], public_key[26],  public_key[27]);
-
-    set_addr_from_key(rnd_addr, public_key);
-    ESP_LOGI(LOG_TAG, " ADDR: %02x %02x %02x %02x %02x %02x", rnd_addr[0], rnd_addr[1], rnd_addr[2], rnd_addr[3], rnd_addr[4], rnd_addr[5]);
-    set_payload_from_key(adv_data, public_key);
-}
-
 // No error handling yet
 uint8_t* read_line_or_dismiss(int* len) {
     uint8_t *line = (uint8_t *) malloc(BUF_SIZE);
@@ -237,11 +213,35 @@ void reset_advertising() {
     }
 }
 
-void send_data_once_blocking(uint8_t* data_to_send, uint32_t len) {
  
-    set_addr_and_payload_for_byte(data_to_send, len);
-    ESP_LOGD(LOG_TAG, "    resetting. Will now use device address: %02x %02x %02x %02x %02x %02x", rnd_addr[0], rnd_addr[1], rnd_addr[2], rnd_addr[3], rnd_addr[4], rnd_addr[5]);
-    esp_ble_gap_stop_advertising();
+void send_data_once_blocking(uint8_t* data_to_send, uint32_t len) {
+
+ 	uint16_t valid_key_counter = 0;
+    static uint8_t public_key[28] = {0};
+    public_key[0] = 0xBA; // magic value
+    public_key[1] = 0xBE;
+    copy_4b_big_endian(&public_key[2], &modem_id);
+    public_key[6] = 0x00;
+    public_key[7] = 0x00;
+    
+    for (int i = 0; i < len; i++) {
+        public_key[27 - i] = data_to_send[i];
+    } 
+
+    do {
+      copy_2b_big_endian(&public_key[6], &valid_key_counter);
+	    valid_key_counter++;
+    } while (!is_valid_pubkey(public_key));
+
+
+    set_addr_from_key(rnd_addr, public_key);
+    set_payload_from_key(adv_data, public_key);
+
+    ESP_LOGI(LOG_TAG, "  pub key to use (%d. try): %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x", valid_key_counter, public_key[0], public_key[1], public_key[2], public_key[3], public_key[4], public_key[5], public_key[6], public_key[7], public_key[8], public_key[9], public_key[10], public_key[11], public_key[12], public_key[13],public_key[14], public_key[15],public_key[16],public_key[17],public_key[18], public_key[19], public_key[20], public_key[21], public_key[22], public_key[23], public_key[24], public_key[25], public_key[26],  public_key[27]);
+    ESP_LOGI(LOG_TAG, " ADDR: %02x %02x %02x %02x %02x %02x", rnd_addr[0], rnd_addr[1], rnd_addr[2], rnd_addr[3], rnd_addr[4], rnd_addr[5]);
+    vTaskDelay(2);
+
+    reset_advertising();
 }
 
 void init_serial() {
@@ -401,8 +401,12 @@ void app_main(void)
     // ESP_LOGI(LOG_TAG, "Entering serial modem mode");
     // init_serial();
 
-    uint16_t count = 0;
-    uint8_t data[2];
+    union {
+        uint8_t arr[2];
+        uint16_t val;
+    } counter;
+    counter.val = 0;
+    
     uint8_t rbuf[READNUMBYTES];
     
     // for reading the first sector
@@ -418,7 +422,7 @@ void app_main(void)
 
         memset(payload_data, 0, PAYLOADSIZE);
         uint32_t time = xTaskGetTickCount();
-        TagAlongPayload(payload_data, 0, count, modem_id, 0, time);
+        TagAlongPayload(payload_data, 0, counter.val, modem_id, 0, time);
         write_result = W25Q32_writePayload(&dev, payload_data, PAYLOADSIZE);
 
         // get next address to write at; just for debugging
@@ -429,18 +433,12 @@ void app_main(void)
         ESP_LOGI(LOG_TAG, "sect_no: %u", sect_no);
         ESP_LOGI(LOG_TAG, "inaddr: %u", inaddr);
         ESP_LOGI(LOG_TAG, "modemID: %u", modemID);
+        ESP_LOGI(LOG_TAG, "count: %d", counter.val);
 
-        // data = count;
-        memcpy(data, &count, 2);
-
-        ESP_LOGI(LOG_TAG, "data: %02x %02x", data[1], data[0]);
-        ESP_LOGI(LOG_TAG, "count: %d", count);
-        for (int i = 0; i < 10; i++) {
-            send_data_once_blocking(data, sizeof(data)); // don't need to subtract one because we're not using strings anymore
-        }
+        send_data_once_blocking(counter.arr, sizeof(counter.arr));
         vTaskDelay(1000);
 
-        count++;
+        counter.val++;
        
 /* 
         // debugging!!
