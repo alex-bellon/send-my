@@ -2,6 +2,7 @@
 #include <string.h>
 #include <stdbool.h>
 #include <stdio.h>
+#include <inttypes.h>
 
 #include "nvs_flash.h"
 #include "esp_partition.h"
@@ -41,7 +42,7 @@
 #define READNUMBYTES 256
 
 // Set custom modem id before flashing:
-static const uint32_t modem_id = 0x000fbeef;
+static const uint32_t modem_id = 0xd3ad0003;
 
 static const char* LOG_TAG = "findmy_modem";
 
@@ -354,31 +355,52 @@ void app_main(void)
 
     uint8_t payload_data[PAYLOADSIZE];
 
-    uint16_t sect_no, inaddr;
+    uint16_t sect_no, inaddr, last_sect_no, last_inaddr;
     uint32_t modemID;
     uint8_t addr_buf[8];
 
-    // erase all on startup; this takes a while
-	W25Q64_eraseAll(&dev, true);
-
-    // initialize first address to write to, which is secto_no = 1, inaddr = 0
-    uint8_t modemID_arr[4];
-	memcpy(modemID_arr, &modem_id, 4);
-    int16_t init_result = W25Q32_initLogging(&dev, modemID_arr);
-    printf("Flash init result: %d\n", init_result);
-    if (init_result != 8){
-        ESP_LOGI(LOG_TAG, "Flash Initialization failed!");
-    }
+    uint16_t count = 0;
 
     // checking if memory initialized properly
     memset(addr_buf, 0, 8);
     W25Q64_read(&dev, 0, addr_buf, 8);
     W25Q32_readLast(addr_buf, &sect_no, &inaddr, &modemID); // get the address to write at
 
-    printf("sect_no, inaddr, and modemID after flash initialization\n");
+    printf("sect_no, inaddr, and modemID\n");
     printf("sect_no: %d\n", sect_no);
     printf("inaddr: %d\n", inaddr);
-    printf("modemID: %d\n", modemID);
+    printf("modemID: %x\n", modemID);
+
+    uint32_t last_addr, last_modem, last_time;
+    uint16_t last_count;
+
+    // read last address at sect_0, inaddr 1; if all f's, then that means first init
+    last_addr = 0; //sect_no 0
+    last_addr<<=12;
+    last_addr += 16; //inaddr 16; go to next 16 bytes
+
+    memset(addr_buf, 0, 8);
+    W25Q64_read(&dev, last_addr, addr_buf, 8);
+    W25Q32_readLast(addr_buf, &last_sect_no, &last_inaddr, &modemID);
+
+    // last_sect_no and last_inaddr will be all f's if only initLogging happened
+    // get the last count here
+    printf("last_sect_no: %x\n", last_sect_no);
+    printf("last_inaddr: %x\n", last_inaddr);
+    if(last_sect_no != 0xffff && last_inaddr != 0xffff){
+        // reusing last_addr variable to get address of data that was last written to
+        last_addr = last_sect_no;
+        last_addr<<=12;
+        last_addr += last_inaddr;
+        memset(payload_data, 0, PAYLOADSIZE);
+        W25Q32_readData(&dev, last_addr, payload_data, PAYLOADSIZE, &last_count, &last_modem, &last_time);
+        count = last_count + 1;
+    }
+
+    // get next address to write at!!
+    memset(addr_buf, 0, 8);
+    W25Q64_read(&dev, 0, addr_buf, 8);
+    W25Q32_readLast(addr_buf, &sect_no, &inaddr, &modemID); // get the address to write at
 
     ESP_ERROR_CHECK(nvs_flash_init());
     ESP_ERROR_CHECK(esp_bt_controller_mem_release(ESP_BT_MODE_CLASSIC_BT));
@@ -401,19 +423,17 @@ void app_main(void)
     // ESP_LOGI(LOG_TAG, "Entering serial modem mode");
     // init_serial();
 
-    uint16_t count = 0;
     uint8_t data[2];
     uint8_t rbuf[READNUMBYTES];
-    
-    // for reading the first sector
-    uint32_t addr = 2;
-	addr<<=12;
-	addr += 0;
+
+    int16_t write_result;
     int len;
 
 
-    int16_t write_result;
-
+    // for reading the first sector if only init (ONLY FOR DEBUGGING)
+    uint32_t addr = 1;
+	addr<<=12;
+	addr += 0;
     while (1) {
 
         memset(payload_data, 0, PAYLOADSIZE);
@@ -436,7 +456,7 @@ void app_main(void)
         ESP_LOGI(LOG_TAG, "data: %02x %02x", data[1], data[0]);
         ESP_LOGI(LOG_TAG, "count: %d", count);
         send_data_once_blocking(data, sizeof(data)); // don't need to subtract one because we're not using strings anymore
-        vTaskDelay(10000);
+        vTaskDelay(15000);
 
         count++;
         
