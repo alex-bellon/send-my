@@ -554,7 +554,7 @@ int16_t W25Q64_pageWrite(W25Q64_t * dev, uint16_t sect_no, uint16_t inaddr, uint
 // record modemID (4 bytes)
 int16_t W25Q32_initLogging(W25Q64_t * dev, uint8_t * modemID){
 	uint16_t sect_no = 1;
-	uint16_t inaddr = 4000;
+	uint16_t inaddr = 0;
 	uint16_t n = 8; //data is going to be 8 bytes long
 
 	uint8_t data[8];
@@ -583,7 +583,7 @@ int16_t W25Q32_initLogging(W25Q64_t * dev, uint8_t * modemID){
 }
 
 // "erase" is an 8-byte array that needs to erase the first 8 bytes (make all f's) in order to write to it
-int16_t W25Q32_writeNextAddr(W25Q64_t * dev, uint16_t sect_no, uint16_t inaddr, uint32_t modemID){
+int16_t W25Q32_writeNextAddr(W25Q64_t * dev, uint16_t sect_no, uint16_t inaddr, uint32_t modemID, bool curr_next){
 	// ESP_LOGI(TAG, "Next sect_no: %d", sect_no);
 	// ESP_LOGI(TAG, "Next inaddr: %d", inaddr);
 	
@@ -610,8 +610,18 @@ int16_t W25Q32_writeNextAddr(W25Q64_t * dev, uint16_t sect_no, uint16_t inaddr, 
 	data[6] = buf[1];
 	data[7] = buf[0];
 
-	int write_result = W25Q64_pageWrite(dev, 0, 0, data, 8);
-	return write_result; //if 0 then error?
+	// if true, write next address
+	// if false, write curr address
+	int write_result;
+	if(curr_next == true){
+		write_result = W25Q64_pageWrite(dev, 0, 0, data, 8);
+	}
+	else if(curr_next == false){
+		write_result = W25Q64_pageWrite(dev, 0, 16, data, 8);
+	}
+	
+	return write_result;
+
 }
 
 // read last address written to
@@ -673,6 +683,47 @@ void TagAlongPayload(uint8_t * data, int16_t empty_0, uint16_t count, uint32_t m
 	data[15] = buf[0];
 }
 
+void W25Q32_readData(W25Q64_t * dev, uint32_t addr, uint8_t *data_buf, uint16_t n, uint16_t *count, uint32_t *modem, uint32_t *time){
+	memset(data_buf, 0, n);
+	W25Q64_read(dev, addr, data_buf, n);
+
+	// empty_0
+	// *data_buf[0];
+	// *data_buf[1];
+
+	// count
+	*count = data_buf[2];
+	*count <<= 8;
+	*count += data_buf[3];
+
+	// modem_id
+	*modem = data_buf[4];
+	*modem <<= 8;
+	*modem += data_buf[5];
+	*modem <<= 8;
+	*modem += data_buf[6];
+	*modem <<= 8;
+	*modem += data_buf[7];
+
+
+	// empty_1
+	// *data_buf[8];
+	// *data_buf[9];
+	// *data_buf[10];
+	// *data_buf[11];
+
+	// time
+	*time = data_buf[12];
+	*time <<= 8;
+	*time += data_buf[13];
+	*time <<= 8;
+	*time += data_buf[14];
+	*time <<= 8;
+	*time += data_buf[15];
+
+	printf("%u,%x,%u\n",*count,*modem,*time);
+}
+
 //
 // Page write --> double check address range
 // sect_no(in):Sector number(0x00 - 0x3FF) 
@@ -682,7 +733,7 @@ void TagAlongPayload(uint8_t * data, int16_t empty_0, uint16_t count, uint32_t m
 //
 int16_t W25Q32_writePayload(W25Q64_t *dev, uint8_t *buf, int16_t n)
 {
-	uint16_t sect_no, inaddr;
+	uint16_t sect_no, inaddr, last_sect_no, last_inaddr;
 	uint32_t modemID;
 	uint8_t addr_buf[8];
 
@@ -694,6 +745,10 @@ int16_t W25Q32_writePayload(W25Q64_t *dev, uint8_t *buf, int16_t n)
 	printf("inaddr: %u\n", inaddr);
 	printf("ModemID: %x\n", modemID);
 	printf("\n");
+
+	// storing the current sector number and inaddr
+	last_sect_no = sect_no;
+	last_inaddr = inaddr;
 
 	if (n > 256) return 0;
 	if (sect_no == 1047) return 0; // DOUBLE CHECK THIS
@@ -708,8 +763,8 @@ int16_t W25Q32_writePayload(W25Q64_t *dev, uint8_t *buf, int16_t n)
 	addr<<=12;
 	addr += inaddr;
 
+	// checking if this is going beyond the inaddr address
 	inaddr += n;
-
 	// inaddr overflow; increment sect_no
 	if (inaddr >= 4095){
 		sect_no++;
@@ -718,8 +773,14 @@ int16_t W25Q32_writePayload(W25Q64_t *dev, uint8_t *buf, int16_t n)
 
 	W25Q64_eraseSector(dev, 0, true);
 
+	// write the last written address here at sect_no 0, inaddr 16
+	int16_t write_result = W25Q32_writeNextAddr(dev, last_sect_no, last_inaddr, modemID, false);
+	if(write_result != 8){
+		printf("writeNextAddr failed!\n");
+	}
+
 	//write new addr
-	int16_t write_result = W25Q32_writeNextAddr(dev, sect_no, inaddr, modemID);
+	write_result = W25Q32_writeNextAddr(dev, sect_no, inaddr, modemID, true);
 	if(write_result != 8){
 		printf("writeNextAddr failed!\n");
 	}
