@@ -41,7 +41,7 @@
 #define READNUMBYTES 256
 
 // Set custom modem id before flashing:
-static const uint32_t modem_id = 0xcaca0005;
+static const uint32_t modem_id = 0xd3ad0009;
 
 static const char* LOG_TAG = "findmy_modem";
 
