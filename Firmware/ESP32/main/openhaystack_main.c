@@ -3,6 +3,7 @@
 #include <stdbool.h>
 #include <stdio.h>
 #include <inttypes.h>
+#include <time.h>
 
 #include "nvs_flash.h"
 #include "esp_partition.h"
@@ -42,7 +43,7 @@
 #define READNUMBYTES 256
 
 // Set custom modem id before flashing:
-static const uint32_t modem_id = 0xd3ad0009;
+static const uint32_t modem_id = 0xd3ad000d;
 
 static const char* LOG_TAG = "findmy_modem";
 
@@ -433,6 +434,10 @@ void app_main(void)
 
     int16_t write_result;
     int len;
+    uint32_t time_past;
+
+    uint32_t unix_time = (uint32_t)time(NULL);
+    printf("Unix time: %u\n", unix_time);
 
 
     // for reading the first sector if only init (ONLY FOR DEBUGGING)
@@ -442,8 +447,8 @@ void app_main(void)
     while (1) {
 
         memset(payload_data, 0, PAYLOADSIZE);
-        uint32_t time = xTaskGetTickCount();
-        TagAlongPayload(payload_data, 0, counter.val, modem_id, 0, time);
+        time_past = xTaskGetTickCount();
+        TagAlongPayload(payload_data, 0, counter.val, modem_id, 0, time_past);
         write_result = W25Q32_writePayload(&dev, payload_data, PAYLOADSIZE);
 
         // get next address to write at; just for debugging
@@ -457,7 +462,8 @@ void app_main(void)
         ESP_LOGI(LOG_TAG, "count: %d", counter.val);
 
         send_data_once_blocking(counter.arr, sizeof(counter.arr));
-        vTaskDelay(15000);
+        // vTaskDelay(15000);
+        vTaskDelay(60000*5);
 
         counter.val++;
        
