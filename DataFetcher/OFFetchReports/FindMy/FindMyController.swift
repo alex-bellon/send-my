@@ -34,11 +34,11 @@ class FindMyController: ObservableObject {
     @Published var devices = [ModemDevice]()
     @Published var messages = [UInt32: Message]()
     @Published var reps = [FindMyReport]()
-    @Published var keys = [[UInt8]]()
+    @Published var keys = [String: [UInt8]]()
     @Published var keyHashes = [Data]()
     
-    @Published var modemID: UInt32 = 0
-    @Published var chunkLength: UInt32 = 16
+    var modemID: UInt32 = 0xd3ad000c
+    var count: UInt16 = 10000
         
     func clearMessages() {
         return;
@@ -56,31 +56,26 @@ class FindMyController: ObservableObject {
     func fetchBitsUntilEnd(
         for modemID: UInt32, message messageID: UInt32, startChunk: UInt32, with searchPartyToken: Data, completion: @escaping (Error?) -> Void
     ) {
-        
-        let static_prefix: [UInt8] = [0xba, 0xbe]
-        
+                
         var m = self.messages[messageID]!
         
         self.messages[UInt32(messageID)] = m
         self.fetchReports(for: messageID, with: searchPartyToken, completion: completion)
     }
     
-    func printHex(key: [UInt8]) {
+    func hexString(key: [UInt8]) -> String {
         var hex = String(format:"%02X", key[0])
         for i in 1..<key.count{
             hex += " " + String(format:"%02X", key[i])
         }
-        print(hex)
+        return hex
     }
     
     func fetchMessage(
         for modemID: UInt32, message messageID: UInt32, chunk chunkLength: UInt32, with searchPartyToken: Data, completion: @escaping (Error?) -> Void
     ) {
         
-        self.modemID = modemID
-        self.chunkLength = chunkLength
         let start_index: UInt32 = 0
-        let message_finished = false;
         let m = Message(modemID: modemID, messageID: UInt32(messageID), chunkLength: chunkLength)
         self.messages[messageID] = m
         
@@ -98,9 +93,11 @@ class FindMyController: ObservableObject {
                 key = prefix + byteArray(from: modem_id) + byteArray(from: tweak) + pad + byteArray(from: count)
                 tweak += 1
             } while (BoringSSL.isPublicKeyValid(Data(key)) == 0 && tweak < UInt16.max)
-            printHex(key: key)
-            self.keys.append(key)
-            result.append(SHA256.hash(data: key).data)
+            print(hexString(key: key))
+            var hash = SHA256.hash(data: key).data
+            var b64 = hash.base64EncodedString()
+            self.keys[b64] = key
+            result.append(hash)
         }
         return result
     }
@@ -113,7 +110,7 @@ class FindMyController: ObservableObject {
             
             fetchReportGroup.enter()
             
-            self.keyHashes = self.calculateKeys(num: 1, modem_id: 0xd3ad0001) // TODO: actually take this number and modem ID in through UI
+            self.keyHashes = self.calculateKeys(num: self.count, modem_id: self.modemID) // TODO: actually take this number and modem ID in through UI
             var keyEncoded = self.keyHashes.map({ $0.base64EncodedString() })
             
             print(keyEncoded.count)
@@ -134,10 +131,10 @@ class FindMyController: ObservableObject {
                 }
                 
                 do {
-                    // Decode the report
                     let report = try JSONDecoder().decode(FindMyReportResults.self, from: jsonData)
                     self.messages[UInt32(messageID)]!.reports += report.results
                     self.reps += report.results
+                    //print(report)
                 } catch {
                     print("Failed with error \(error)")
                     self.messages[UInt32(messageID)]!.reports = []
@@ -155,42 +152,59 @@ class FindMyController: ObservableObject {
         }
     }
     
-    func decryptReports(completion: () -> Void) {
-            print("Decrypting reports")
-
-                //let keyMap = device.keys.reduce(into: [String: FindMyKey](), { $0[$1.hashedKey.base64EncodedString()] = $1 })
-
-                let accessQueue = DispatchQueue(label: "threadSafeAccess", qos: .userInitiated, attributes: .concurrent, autoreleaseFrequency: .workItem, target: nil)
-                var decryptedReports = [FindMyLocationReport](repeating: FindMyLocationReport(lat: 0, lng: 0, acc: 0, dP: Date(), t: Date(), c: 0), count: reps.count)
-                DispatchQueue.concurrentPerform(iterations: reps.count) { (reportIdx) in
-                    let report = reps[reportIdx]
-                    let key = // TODO
-                    do {
-                        // Decrypt the report
-                        let locationReport = try DecryptReports.decrypt(report: report, with: key)
-                        accessQueue.async(flags: .barrier) {
-                            decryptedReports[reportIdx] = locationReport
-                        }
-                    } catch {
-                        return
-                    }
-                }
-
-                accessQueue.sync {
-                    devices[deviceIdx].decryptedReports = decryptedReports
-                }
-            completion()
-
-        }
+//    func decryptReports(completion: () -> Void) {
+//            print("Decrypting reports")
+//
+//                //let keyMap = device.keys.reduce(into: [String: FindMyKey](), { $0[$1.hashedKey.base64EncodedString()] = $1 })
+//
+//                let accessQueue = DispatchQueue(label: "threadSafeAccess", qos: .userInitiated, attributes: .concurrent, autoreleaseFrequency: .workItem, target: nil)
+//                var decryptedReports = [FindMyLocationReport](repeating: FindMyLocationReport(lat: 0, lng: 0, acc: 0, dP: Date(), t: Date(), c: 0), count: reps.count)
+//                DispatchQueue.concurrentPerform(iterations: reps.count) { (reportIdx) in
+//                    let report = reps[reportIdx]
+//                    let key = // TODO
+//                    do {
+//                        // Decrypt the report
+//                        let locationReport = try DecryptReports.decrypt(report: report, with: key)
+//                        accessQueue.async(flags: .barrier) {
+//                            decryptedReports[reportIdx] = locationReport
+//                        }
+//                    } catch {
+//                        return
+//                    }
+//                }
+//
+//                accessQueue.sync {
+//                    devices[deviceIdx].decryptedReports = decryptedReports
+//                }
+//            completion()
+//
+//        }
     
     func decodeReports(messageID: UInt32, with searchPartyToken: Data, completion: @escaping (Error?) -> Void) {
         print("Decoding reports")
         
-        var reportMap = [String: Int]()
-        // reps.forEach{ reportMap[$0.id, default:0] += 1 }
+        var reportMap = [String: [FindMyReport]]()
+        reps.forEach{ (reportMap[hexString(key: self.keys[$0.id]!), default:[]]).append($0) }
         for rep in reps {
-            print(rep.timestamp)
+            print(rep)
         }
+        // reps.forEach{ (reportMap[hexString(key: Array(self.keys[$0.id]![26...27])), default:[]]).append($0) }
+        print(reps.count)
+        var seenKeys = [String]()
+        reportMap.keys.forEach{ seenKeys.append($0) }
+        seenKeys.sort()
+        //print(seenKeys)
+        
+        let homeDirURL = FileManager.default.homeDirectoryForCurrentUser
+        let fileURL = homeDirURL.appendingPathComponent("git/LoRa-analysis/analysis/shipment/ble/data/dump.json")
+        do {
+            let jsonData = try JSONEncoder().encode(reportMap)
+            print(jsonData)
+            try jsonData.write(to: fileURL)
+        } catch {
+            print("ruh roh raggy")
+        }
+                        
     }
 }
 
