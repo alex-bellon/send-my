@@ -21,7 +21,9 @@ For deploying the firmware, you need Python 3 on your path, either as `python3` 
 
 ## Build
 
-With the ESP-IDF on your `$PATH`, you can use `idf.py` to build the application from within this directory:
+You will first need to have the ESP-IDF on your on your `$PATH` to use `idf.py`. Before building, you might also need to enable Bluetooth. To do so, type in `idf.py menuconfig`, then go to `Component config` --> `Bluetooth` and enable Bluetooth.
+
+To build the application from within this directory:
 
 ```bash
 idf.py build
@@ -34,10 +36,6 @@ This will create the following files:
 - `build/openhaystack.bin` -- The application itself
 
 These files are required for the next step: Deploy the firmware.
-
-## Enable Bluetooth
-
-You might also need to enable Bluetooth. To do so, type in `idf.py menuconfig`, then go to `Component config` --> `Bluetooth` and enable Bluetooth.
 
 ## Deploy the Firmware
 
