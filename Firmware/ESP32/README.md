@@ -35,6 +35,10 @@ This will create the following files:
 
 These files are required for the next step: Deploy the firmware.
 
+## Enable Bluetooth
+
+You might also need to enable Bluetooth. To do so, type in `idf.py menuconfig`, then go to `Component config` --> `Bluetooth` and enable Bluetooth.
+
 ## Deploy the Firmware
 
 Use the `flash_esp32.sh` script to deploy the firmware and a public key to an ESP32 device connected to your local machine:
