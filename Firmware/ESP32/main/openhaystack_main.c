@@ -43,8 +43,8 @@
 #define READNUMBYTES 256
 
 // Set custom modem id before flashing:
-#define TIMEINTERVAL 15000
-static const uint32_t modem_id = 0xd3ad1003;
+#define TIMEINTERVAL 60000
+static const uint32_t modem_id = 0xd3ad1004;
 
 static const char* LOG_TAG = "findmy_modem";
 
