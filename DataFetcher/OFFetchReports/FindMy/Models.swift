@@ -109,6 +109,7 @@ struct FindMyReport: Codable {
     case payload
     case id
     case statusCode
+    case timestamp
   }
 
   init(from decoder: Decoder) throws {
@@ -153,6 +154,7 @@ struct FindMyReport: Codable {
     try container.encode(self.payload.base64EncodedString(), forKey: .payload)
     try container.encode(self.id, forKey: .id)
     try container.encode(self.statusCode, forKey: .statusCode)
+    try container.encode(self.timestamp.timeIntervalSince1970 * 1000, forKey: .timestamp)
   }
 }
 

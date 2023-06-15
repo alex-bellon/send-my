@@ -41,15 +41,10 @@ struct OFFetchReportsMainView: View {
        
       Button(
         action: {
-            guard let parsedModemID = UInt32(self.modemIDString.replacingOccurrences(of: " ", with: "", options: NSString.CompareOptions.literal, range: nil), radix: 16) else { return }
-            guard let parsedChunkLength = UInt32(self.chunkLengthString.replacingOccurrences(of: " ", with: "", options: NSString.CompareOptions.literal, range: nil), radix: 10) else { return }
-            
-            self.modemID = parsedModemID
-            self.chunkLength = parsedChunkLength
-            print("Parsed Modem ID: \(parsedModemID); " + String(parsedModemID, radix: 16))
-            print("Parsed Modem ID: \(parsedChunkLength); " + String(parsedChunkLength, radix: 10))
+            self.modemID = 0
+            self.chunkLength = 0
             self.findMyController.clearMessages()
-            self.loadMessage(modemID: parsedModemID, messageID: UInt32(0), chunkLength: parsedChunkLength)
+            self.loadMessage(modemID: 0, messageID: UInt32(0), chunkLength: 0)
             
             let timeInterval = NSDate().timeIntervalSince1970
             print("Unix Time: \(timeInterval)")
