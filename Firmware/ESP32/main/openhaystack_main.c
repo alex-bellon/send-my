@@ -2938,11 +2938,14 @@ void app_main(void)
     // ESP_LOGI(LOG_TAG, "Entering serial modem mode");
     // init_serial();
 
+    int keynum = 0;
+
     union {
         uint8_t arr[2];
         uint16_t val;
     } counter;
     counter.val = count;
+    keynum = count;
     
     uint8_t rbuf[READNUMBYTES];
 
@@ -2958,8 +2961,6 @@ void app_main(void)
     uint32_t addr = 1;
 	addr<<=12;
 	addr += 0;
-
-    int keynum = 0;
 
     while (1) {
 
