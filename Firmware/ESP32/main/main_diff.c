@@ -43,8 +43,11 @@
 #define READNUMBYTES 256
 
 // Set custom modem id before flashing:
+// 15000 = ~2.5min
+// 30000 = 5min
+// 60000 = 10min
 #define TIMEINTERVAL 60000
-static const uint32_t modem_id = 0xd3ad1004;
+static const uint32_t modem_id = 0xd3ad1008;
 
 static const char* LOG_TAG = "findmy_modem";
 
@@ -219,7 +222,7 @@ void reset_advertising() {
  
 void send_data_once_blocking(uint8_t* data_to_send, uint32_t len) {
 
- 	uint16_t valid_key_counter = 0;
+/*
     static uint8_t public_key[28] = {0};
     public_key[0] = 0xBA; // magic value
     public_key[1] = 0xBE;
@@ -235,6 +238,13 @@ void send_data_once_blocking(uint8_t* data_to_send, uint32_t len) {
       copy_2b_big_endian(&public_key[6], &valid_key_counter);
 	    valid_key_counter++;
     } while (!is_valid_pubkey(public_key));
+*/
+
+ 	uint16_t valid_key_counter = 0;
+    static uint8_t public_key[28] = {0};
+    for (int i = 0; i < len; i++) {
+        public_key[i] = data_to_send[i];
+    } 
 
 
     set_addr_from_key(rnd_addr, public_key);
@@ -445,6 +455,9 @@ void app_main(void)
     uint32_t addr = 1;
 	addr<<=12;
 	addr += 0;
+
+    int keynum = 0;
+
     while (1) {
 
         memset(payload_data, 0, PAYLOADSIZE);
@@ -462,9 +475,15 @@ void app_main(void)
         ESP_LOGI(LOG_TAG, "modemID: %u", modemID);
         ESP_LOGI(LOG_TAG, "count: %d", counter.val);
 
-        send_data_once_blocking(counter.arr, sizeof(counter.arr));
+        send_data_once_blocking(keys[keynum], 28);
+        keynum++;
+        if (keynum >= 4975) {
+            keynum = 0;
+        }
+
+        // 15000 = ~2.5min
+        // 30000 = 5min
         vTaskDelay(TIMEINTERVAL);
-        // vTaskDelay(60000);
 
         counter.val++;
        
