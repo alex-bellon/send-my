@@ -46,7 +46,7 @@
 // 15000 = ~2.5min
 // 30000 = 5min
 // 60000 = 10min
-#define TIMEINTERVAL 300000
+#define TIMEINTERVAL 600000
 static const uint32_t modem_id = 0xd3ad1009;
 // static const uint32_t modem_id = 0xd3add3ad;
 
@@ -2938,14 +2938,11 @@ void app_main(void)
     // ESP_LOGI(LOG_TAG, "Entering serial modem mode");
     // init_serial();
 
-    int keynum = 0;
-
     union {
         uint8_t arr[2];
         uint16_t val;
     } counter;
     counter.val = count;
-    keynum = count;
     
     uint8_t rbuf[READNUMBYTES];
 
@@ -2961,6 +2958,8 @@ void app_main(void)
     uint32_t addr = 1;
 	addr<<=12;
 	addr += 0;
+
+    // int keynum = 0;
 
     while (1) {
 
@@ -2979,11 +2978,11 @@ void app_main(void)
         ESP_LOGI(LOG_TAG, "modemID: %u", modemID);
         ESP_LOGI(LOG_TAG, "count: %d", counter.val);
 
-        send_data_once_blocking(keys[keynum], 28);
-        keynum++;
-        if (keynum >= 4975) {
-            keynum = 0;
-        }
+        send_data_once_blocking(keys[counter.val % 2500], 28);
+        // keynum++;
+        // if (keynum >= 4975) {
+        //     keynum = 0;
+        // }
 
         // 15000 = ~2.5min
         // 30000 = 5min
