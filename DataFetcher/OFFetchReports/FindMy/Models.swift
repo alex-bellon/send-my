@@ -165,18 +165,30 @@ struct FindMyLocationReport: Codable {
   let datePublished: Date
   let timestamp: Date?
   let confidence: UInt8?
+    let id: String
 
+  enum CodingKeys: CodingKey {
+    case datePublished
+    case timestamp
+    case latitude
+    case longitude
+    case accuracy
+    case confidence
+    case id
+  }
+    
   var location: CLLocation {
     return CLLocation(latitude: latitude, longitude: longitude)
   }
 
-  init(lat: Double, lng: Double, acc: UInt8, dP: Date, t: Date, c: UInt8) {
+    init(lat: Double, lng: Double, acc: UInt8, dP: Date, t: Date, c: UInt8, id: String) {
     self.latitude = lat
     self.longitude = lng
     self.accuracy = acc
     self.datePublished = dP
     self.timestamp = t
     self.confidence = c
+        self.id = id
   }
 
   init(from decoder: Decoder) throws {
@@ -196,7 +208,19 @@ struct FindMyLocationReport: Codable {
     self.datePublished = try values.decode(Date.self, forKey: .datePublished)
     self.timestamp = try? values.decode(Date.self, forKey: .timestamp)
     self.confidence = try? values.decode(UInt8.self, forKey: .confidence)
+      self.id = try values.decode(String.self, forKey: .id)
   }
+    
+    func encode(to encoder: Encoder) throws {
+      var container = encoder.container(keyedBy: CodingKeys.self)
+      try container.encode(self.datePublished.timeIntervalSince1970 * 1000, forKey: .datePublished)
+      try container.encode(self.timestamp!.timeIntervalSince1970 * 1000, forKey: .timestamp)
+      try container.encode(self.latitude, forKey: .latitude)
+      try container.encode(self.longitude, forKey: .longitude)
+      try container.encode(self.accuracy, forKey: .accuracy)
+      try container.encode(self.confidence, forKey: .confidence)
+        try container.encode(self.id, forKey: .id)
+    }
 
 }
 

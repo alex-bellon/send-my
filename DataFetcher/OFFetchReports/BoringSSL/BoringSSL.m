@@ -20,8 +20,8 @@
 
 + (NSData * _Nullable) deriveSharedKeyFromPrivateKey: (NSData *) privateKey andEphemeralKey: (NSData*) ephemeralKeyPoint {
     
-    NSLog(@"Private key %@", [privateKey base64EncodedStringWithOptions:0]);
-    NSLog(@"Ephemeral key %@", [ephemeralKeyPoint base64EncodedStringWithOptions:0]);
+    //NSLog(@"Private key %@", [privateKey base64EncodedStringWithOptions:0]);
+    //NSLog(@"Ephemeral key %@", [ephemeralKeyPoint base64EncodedStringWithOptions:0]);
     
     EC_GROUP *curve = EC_GROUP_new_by_curve_name(NID_secp224r1);
     
@@ -47,11 +47,11 @@
         ERR_print_errors(bio);
         char *buf;
         size_t len = BIO_get_mem_data(bio, &buf);
-        NSLog(@"Generating shared key failed %s", buf); 
+        NSLog(@"Generating shared key failed %s", buf);
         BIO_free(bio);
     }
     
-    NSLog(@"Shared key: %@", [sharedKey base64EncodedStringWithOptions:0]);
+    //NSLog(@"Shared key: %@", [sharedKey base64EncodedStringWithOptions:0]);
     
     return sharedKey;
 }
@@ -231,7 +231,7 @@
     
     NSData *written = [[NSData alloc] initWithBytes:pointData.bytes length:res];
         
-    NSLog(@"Point data is: %@", [written base64EncodedStringWithOptions:0]);
+    //NSLog(@"Point data is: %@", [written base64EncodedStringWithOptions:0]);
 }
 
 @end
