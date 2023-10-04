@@ -47,7 +47,7 @@ struct OFFetchReportsMainView: View {
             self.loadMessage(modemID: 0, messageID: UInt32(0), chunkLength: 0)
             
             let timeInterval = NSDate().timeIntervalSince1970
-            print("Unix Time: \(timeInterval)")
+            //print("Unix Time: \(timeInterval)")
         
         },
         label: {
@@ -159,8 +159,8 @@ var dataView: some View {
 
   // swiftlint:disable identifier_name
   func getDataForModem(modemID: UInt32) -> Bool {
-        print("Retrieving data")
-        print(modemID)
+        //print("Retrieving data")
+        //print(modemID)
         
             AnisetteDataManager.shared.requestAnisetteData { result in
             switch result {
@@ -174,7 +174,7 @@ var dataView: some View {
                     print("Fail token")
                     return
                 }
-                print("Fetching data")
+                //print("Fetching data")
                 print(token)
                 self.downloadAndDecodeData(modemID: modemID, messageID: UInt32(0), chunkLength: UInt32(8), searchPartyToken: token)
 
@@ -186,10 +186,10 @@ var dataView: some View {
   // swiftlint:disable identifier_name
   func loadMessage(modemID: UInt32, messageID: UInt32, chunkLength: UInt32) -> Bool {
         self.messageIDToFetch = messageID
-        print("Retrieving data")
-        print(modemID)
-        print(messageID)
-        print(chunkLength)
+        //print("Retrieving data")
+        //print(modemID)
+        //print(messageID)
+        //print(chunkLength)
         
             AnisetteDataManager.shared.requestAnisetteData { result in
             switch result {
@@ -203,7 +203,7 @@ var dataView: some View {
                     print("Fail token")
                     return
                 }
-                print("Fetching data")
+                //print("Fetching data")
                 print(token)
                 self.downloadAndDecodeData(modemID: modemID, messageID: messageID, chunkLength: chunkLength, searchPartyToken: token)
 

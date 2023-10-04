@@ -32,14 +32,14 @@ struct DecryptReports {
 
         let derivedKey = self.kdf(fromSharedSecret: sharedKey, andEphemeralKey: ephemeralKey)
 
-        print("Derived key \(derivedKey.base64EncodedString())")
+        //print("Derived key \(derivedKey.base64EncodedString())")
 
         let encData = payloadData.subdata(in: 62..<72)
         let tag = payloadData.subdata(in: 72..<payloadData.endIndex)
 
         let decryptedContent = try self.decryptPayload(payload: encData, symmetricKey: derivedKey, tag: tag)
         let locationReport = self.decode(content: decryptedContent, report: report)
-        print(locationReport)
+        //print(locationReport)
         return locationReport
     }
 
@@ -55,8 +55,8 @@ struct DecryptReports {
         let decryptionKey = symmetricKey.subdata(in: 0..<16)
         let iv = symmetricKey.subdata(in: 16..<symmetricKey.endIndex)
 
-        print("Decryption Key \(decryptionKey.base64EncodedString())")
-        print("IV \(iv.base64EncodedString())")
+        //print("Decryption Key \(decryptionKey.base64EncodedString())")
+        //print("IV \(iv.base64EncodedString())")
 
         let sealedBox = try AES.GCM.SealedBox(nonce: AES.GCM.Nonce(data: iv), ciphertext: payload, tag: tag)
         let symKey = SymmetricKey(data: decryptionKey)
@@ -80,7 +80,7 @@ struct DecryptReports {
         let latitudeDec = Double(latitude) / 10000000.0
         let longitudeDec = Double(longitude) / 10000000.0
 
-        return FindMyLocationReport(lat: latitudeDec, lng: longitudeDec, acc: accuracy, dP: report.datePublished, t: report.timestamp, c: report.confidence)
+        return FindMyLocationReport(lat: latitudeDec, lng: longitudeDec, acc: accuracy, dP: report.datePublished, t: report.timestamp, c: report.confidence, id: report.id)
     }
 
     static func kdf(fromSharedSecret secret: Data, andEphemeralKey ephKey: Data) -> Data {
