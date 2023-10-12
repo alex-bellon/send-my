@@ -10,233 +10,136 @@
 import SwiftUI
 
 struct OFFetchReportsMainView: View {
-
-  @Environment(\.findMyController) var findMyController
-
-  @State var targetedDrop: Bool = false
-  @State var error: Error?
-  @State var showData = false
-  @State var loading = false
-  @State var messageIDToFetch: UInt32 = 0
-
-  @State var searchPartyToken: Data?
-  @State var searchPartyTokenString: String = ""
-  @State var modemID: UInt32 = 0
-  @State var modemIDString: String = ""
-  @State var chunkLength: UInt32 = 0
-  @State var chunkLengthString: String = ""
-  @State var keyPlistFile: Data?
-
-  @State var showModemPrompt = false
     
-  var modemIDView: some View {
-    VStack {
-      Spacer()
-      Text("Please insert the modem id that you want to fetch data for, and the chunk length:")
-        HStack {
-        Spacer()
-        TextField("4 byte hex string, e.g. DE AD BE EF", text: self.$modemIDString).frame(width: 250) 
-        Spacer()
-        TextField("Length of chunk in bits (1-8)", text: self.$chunkLengthString).frame(width: 250)
-       
-      Button(
-        action: {
-            self.modemID = 0
-            self.chunkLength = 0
-            self.findMyController.clearMessages()
-            self.loadMessage(modemID: 0, messageID: UInt32(0), chunkLength: 0)
-            
-            let timeInterval = NSDate().timeIntervalSince1970
-            //print("Unix Time: \(timeInterval)")
-        
-        },
-        label: {
-          Text("Download data")
-        })
-      Spacer()
-      }
-    Spacer()
-    Spacer()
-    }
-  }    
+    @Environment(\.findMyController) var findMyController
     
-  var loadingView: some View {
-    VStack {
-      Text("Downloading and decoding message #\(self.messageIDToFetch)...")
-        .font(Font.system(size: 32, weight: .bold, design: .default))
-        .padding()
-    }
-  }
-
-var dataView: some View {
-    VStack {
-           HStack {
-               // Text("Result")
-               Spacer()
-                  Button(
+    @State var error: Error?
+    @State var genKey = false
+    @State var loading = false
+    @State var retrieveReports = false
+    
+    @State var searchPartyToken: Data?
+    @State var searchPartyTokenString: String = ""
+    
+    var mainView: some View {
+        VStack {
+            Spacer()
+            Text("Would you like to generate keys or retreive reports?")
+            HStack {
+                Button(
                     action: {
-                      self.showData = false
-                      self.showModemPrompt = true
+                        self.findMyController.generatePublicKeys()
+                        self.genKey = true
                     },
                     label: {
-                      Text("ID: 0x\(String(self.findMyController.modemID, radix: 16))")
-                    }).padding(.top, 5).padding(.trailing, 5)
-           }
-           Divider()
-           ForEach(0...max(10, self.findMyController.messages.count+1), id: \.self) { i in
-            if  self.findMyController.messages[UInt32(i)] != nil {
-             HStack {
-              Text("#\(self.findMyController.messages[UInt32(i)]!.messageID)").font(.system(size: 14, design: .monospaced)).frame(width: 30)
-              Text(self.findMyController.messages[UInt32(i)]!.decodedStr ?? "<None>").font(.system(size: 14, design: .monospaced))
-        
-              Spacer()
-                  Button(
-                    action: {
-                        self.loadMessage(modemID: self.modemID, messageID: self.findMyController.messages[UInt32(i)]!.messageID, chunkLength: self.chunkLength)
-                    },
-                    label: {
-                      Text("Reload message")
+                        Text("Generate keys")
                     })
-                 }
+                Button(
+                    action: {
+                        self.loading = true
+                        self.queryForReports()
+                    },
+                    label: {
+                        Text("Retrieve reports")
+                    })
+            }
+            Spacer()
+        }
+    }
+    
+    var genKeyView: some View {
+        VStack {
+            Spacer()
+            Text("Keys generated and written to ~/keypairs.txt")
+            HStack {
+                Spacer()
+                Button(action: {
+                    self.genKey = false
+                }, label: {
+                    Text("Return to main menu")
+                })
+                Spacer()
+            }
+            Spacer()
+        }
+    }
+    
+    var retrieveReportsView: some View {
+        VStack {
+            Spacer()
+            Text("Retrieved reports, written to ~/reports-dictionary.json and ~/reports-decrypted.json")
+            HStack {
+                Spacer()
+                Button(action: {
+                    self.retrieveReports = false
+                }, label: {
+                    Text("Return to main menu")
+                })
+                Spacer()
+            }
+            Spacer()
+        }
+    }
+    
+    var loadingView: some View {
+        VStack {
+            Text("Retrieving reports...")
+                .font(Font.system(size: 32, weight: .bold, design: .default))
+                .padding()
+        }
+    }
+    
+    var body: some View {
+        GeometryReader { geo in
+            if self.loading {
+                self.loadingView
+            } else if self.genKey {
+                self.genKeyView
+            } else if self.retrieveReports {
+                self.retrieveReportsView
             } else {
+                self.mainView
+                    .frame(width: geo.size.width, height: geo.size.height)
+            }
+        }
+    }
+    
+    struct ContentView_Previews: PreviewProvider {
+        static var previews: some View {
+            OFFetchReportsMainView()
+        }
+    }
+    
+    func queryForReports() {
+        AnisetteDataManager.shared.requestAnisetteData { result in
+            switch result {
+            case .failure(_):
+                print("AnsietteDataManager failed.")
+            case .success(let accountData):
                 
-               Button(
-                    action: {
-                        self.loadMessage(modemID: self.modemID, messageID: UInt32(i), chunkLength: self.chunkLength)
-                    },
-                    label: {
-                      Text("Load message #\(i)")
-                    })
-               //Spacer()
-               
-            
-           }
-        }
-     }
-  }
-
-  // This view is shown if the search party token cannot be accessed from keychain
-  var missingSearchPartyTokenView: some View {
-    VStack {
-      Text("Search Party token could not be fetched")
-      Text("Please paste the search party token below after copying it from the macOS Keychain.")
-      Text("The item that contains the key can be found by searching for: ")
-      Text("com.apple.account.DeviceLocator.search-party-token")
-        .font(.system(Font.TextStyle.body, design: Font.Design.monospaced))
-
-      TextField("Search Party Token", text: self.$searchPartyTokenString)
-
-      Button(
-        action: {
-          if !self.searchPartyTokenString.isEmpty,
-            let file = self.keyPlistFile,
-            let searchPartyToken = self.searchPartyTokenString.data(using: .utf8)
-          {
-            self.searchPartyToken = searchPartyToken
-            //self.downloadAndDecryptLocations(with: file, searchPartyToken: searchPartyToken)
-          }
-        },
-        label: {
-          Text("Download reports")
-        })
-    }
-  }
-  var body: some View {
-    GeometryReader { geo in
-      if self.loading {
-        self.loadingView
-      } else if self.showData {
-        self.dataView
-      } else if self.showModemPrompt {
-        self.modemIDView
-      } else {
-        self.modemIDView
-          .frame(width: geo.size.width, height: geo.size.height)
-      }
-    }
-
-  }
-
-  // swiftlint:disable identifier_name
-  func getDataForModem(modemID: UInt32) -> Bool {
-        //print("Retrieving data")
-        //print(modemID)
-        
-            AnisetteDataManager.shared.requestAnisetteData { result in
-            switch result {
-            case .failure(_):
-                print("AnsietteDataManager failed.")
-            case .success(let accountData):
-
                 guard let token = accountData.searchPartyToken,
-                    token.isEmpty == false
+                      token.isEmpty == false
                 else {
                     print("Fail token")
                     return
                 }
-                //print("Fetching data")
+                print("Fetching data")
                 print(token)
-                self.downloadAndDecodeData(modemID: modemID, messageID: UInt32(0), chunkLength: UInt32(8), searchPartyToken: token)
-
+                self.findMyController.retreiveForPredeterminedKeys(with: token,
+                                                                   completion: { error in
+                    // Check if an error occurred
+                    guard error == nil else {
+                        print("An error occured. Not showing data.")
+                        self.error = error
+                        return
+                    }
+                    
+                    // Show data view
+                    self.loading = false
+                    self.retrieveReports = true
+                    
+                })
             }
         }
-    return true
-  }
-
-  // swiftlint:disable identifier_name
-  func loadMessage(modemID: UInt32, messageID: UInt32, chunkLength: UInt32) -> Bool {
-        self.messageIDToFetch = messageID
-        //print("Retrieving data")
-        //print(modemID)
-        //print(messageID)
-        //print(chunkLength)
-        
-            AnisetteDataManager.shared.requestAnisetteData { result in
-            switch result {
-            case .failure(_):
-                print("AnsietteDataManager failed.")
-            case .success(let accountData):
-
-                guard let token = accountData.searchPartyToken,
-                    token.isEmpty == false
-                else {
-                    print("Fail token")
-                    return
-                }
-                //print("Fetching data")
-                print(token)
-                self.downloadAndDecodeData(modemID: modemID, messageID: messageID, chunkLength: chunkLength, searchPartyToken: token)
-
-            }
-        }
-    return true
-  }
-
-  func downloadAndDecodeData(modemID: UInt32, messageID: UInt32, chunkLength: UInt32, searchPartyToken: Data) {
-      
-      
-    self.loading = true
-
-    self.findMyController.fetchMessage(
-      for: modemID, message: messageID, chunk: chunkLength, with: searchPartyToken,
-      completion: { error in
-        // Check if an error occurred
-        guard error == nil else {
-          print("An error occured. Not showing data.")
-          self.error = error
-          return
-        }
-
-        // Show data view
-        self.loading = false
-        self.showData = true
-
-      })
-  }
-}
-
-struct ContentView_Previews: PreviewProvider {
-  static var previews: some View {
-    OFFetchReportsMainView()
-  }
+    }
 }
