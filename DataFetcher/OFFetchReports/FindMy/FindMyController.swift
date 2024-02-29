@@ -87,6 +87,7 @@ class FindMyController: ObservableObject {
         if var dir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first {
             
             let homeDirURL = FileManager.default.homeDirectoryForCurrentUser
+            
 //            let pubURL = homeDirURL.appendingPathComponent("git/LoRa-analysis/experiments/firmware/ble_keys/pubs.txt")
 //            let privURL = homeDirURL.appendingPathComponent("git/LoRa-analysis/experiments/firmware/ble_keys/privs.txt")
             let pubURL = homeDirURL.appendingPathComponent("Dropbox/UCSD/Research/Helium/LoRa-analysis/experiments/esp32_public_key_generation/pubs.txt")
