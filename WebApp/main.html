@@ -1,0 +1,46 @@
+<html>
+    <head><title>TagAlong</title></head>
+    <link href="https://fonts.googleapis.com/css?family=Nunito" rel="stylesheet">
+    <style>
+        body {
+            text-align: center;
+            background-color: #a495ba;
+        }
+        form {
+            display: inline-block;
+            margin-top: 5em;
+        }    
+        input[type=text] {
+            width: 100%;
+            padding: 12px 20px;
+            margin: 8px 0;
+            box-sizing: border-box;
+            border: none;
+            background-color: #c1b4d4;
+            font-size: 40px; 
+            border-radius: 10px;
+            color: #5c516b;
+        }
+        input[type=button], input[type=submit] {
+            background-color: #5c516b;
+            border: none;
+            color: white;
+            padding: 8px 16px;
+            text-decoration: none;
+            margin: 16px 4px;
+            cursor: pointer;
+            border-radius: 10px;
+            font-size: 30px;
+            color: #c1b4d4;
+        }
+        .tagalong {
+            color: white;
+            font-size: 30px;
+            font-family: "Nunito", sans-serif; 
+        }
+    </style>
+    <form action="/send" method="POST">
+        <input type="text" id="payload" name="payload" placeholder="Enter message here"></input><br>
+        <input type="submit" value="Send!">
+    </form>
+</html>
