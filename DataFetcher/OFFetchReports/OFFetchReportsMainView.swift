@@ -51,32 +51,42 @@ struct OFFetchReportsMainView: View {
             self.findMyController.clearMessages()
             self.loadMessage(modemID: parsedModemID, messageID: UInt32(0), chunkLength: parsedChunkLength)
             
-            let timeInterval = NSDate().timeIntervalSince1970
-            print("Unix Time: \(timeInterval)")
-            
+            let numKeys = 256
             let genKeys = false
+            
             
             if genKeys {
 //                generating a bunch of keys
                 let staticPrefix: [UInt8] = [0xba, 0xbe]
-                let zeroPadding: [UInt8] = [0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]
+//                let staticPrefix: [UInt8] = [0xfa, 0xbe]
+                let zeroPadding: [UInt8] = [0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]
                 var count: UInt16 = 0
-                var validCounter: UInt8 = 0
+                var validCounter: UInt16 = 0
                 var keyTest = [UInt8]()
+                
+                let timeInterval_0 = NSDate().timeIntervalSince1970
+                
                 while count < 65535 {
-                    keyTest = staticPrefix + byteArray(from: modemID)
-                    keyTest += byteArray(from: validCounter) + zeroPadding + byteArray(from: count)
-                    var hexKeyTest = String(format:"%02X", keyTest[0])
-                    for i in 1..<keyTest.count{
-                        hexKeyTest += " " + String(format:"%02X", keyTest[i])
+                    repeat {
+                      keyTest = staticPrefix + byteArray(from: modemID)
+                      keyTest += byteArray(from: validCounter) + zeroPadding + byteArray(from: count)
+                      validCounter += 1
+                    } while (BoringSSL.isPublicKeyValid(Data(keyTest)) == 0 && validCounter < UInt16.max)
+//                    var decKeyTest = String(keyTest[0])
+//                    var hexKeyTest = String(format:"%02X", keyTest[0])
+//                    for i in 1..<keyTest.count{
+//                        decKeyTest += " " + String(keyTest[i])
+//                        hexKeyTest += " " + String(format:"%02X", keyTest[i])
+//                    }
+                    if count == (numKeys*5 - 1) {
+                        let timeInterval_1 = NSDate().timeIntervalSince1970
+                        let timeDiff = timeInterval_1 - timeInterval_0
+                        let avgTimeDiff = timeDiff / 5
+                        print("For \(numKeys) keys, average time is \(avgTimeDiff)")
                     }
-                    print(hexKeyTest)
-                    if BoringSSL.isPublicKeyValid(Data(keyTest)) == 0 {
-                        validCounter += 1
-                    } else {
-                        count += 1
-                        validCounter = 0
-                    }
+//                    print(decKeyTest)
+                    count += 1
+                    validCounter = 0
                 }
             }
         },
