@@ -41,9 +41,9 @@
 // #define TAG "W25Q64"
 #define PAYLOADSIZE 16
 #define READNUMBYTES 256
-
 // ONE:
 // Set custom modem id before flashing:
+
 // 15000 = ~2.5min
 // 30000 = 5min
 // 60000 = 10min
@@ -52,7 +52,6 @@
 // TWO:
 // Set custom modem ID
 static const uint32_t modem_id = 0xd3ad200c;
-// static const uint32_t modem_id = 0xd3add3ad;
 
 static const char* LOG_TAG = "findmy_modem";
 
@@ -2589,6 +2588,7 @@ static uint8_t keys[2500][28] = {{0x2b, 0xfa, 0xe4, 0xb6, 0xd3, 0x79, 0x33, 0xea
 };
 
 uint8_t curr_addr[20];  
+uint32_t current_message_id = 0;
 
 uint8_t data[2];
 
@@ -2727,7 +2727,6 @@ void reset_advertising() {
         return;
     }
 }
-
  
 void send_data_once_blocking(uint8_t* data_to_send, uint32_t len) {
 
