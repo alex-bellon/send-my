@@ -15,12 +15,17 @@
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "freertos/event_groups.h"
+#include "freertos/timers.h"
 
 #include "driver/uart.h"
 #include "driver/gpio.h"
 #include "sdkconfig.h"
 
 #include "uECC.h"
+#include "w25q64.h"
+
+#include <esp_wifi.h>
 
 #define CHECK_BIT(var,pos) ((var) & (1<<(7-pos)))
 
@@ -33,8 +38,52 @@
 
 #define BUF_SIZE (1024)
 
+#define EXAMPLE_ESP_WIFI_SSID      "pascal"
+#define EXAMPLE_ESP_WIFI_PASS      "ilikecode"
+#define EXAMPLE_ESP_MAXIMUM_RETRY  5
+
+// #define TAG "W25Q64"
+#define PAYLOADSIZE 16
+#define READNUMBYTES 256
+
+#if CONFIG_ESP_WIFI_AUTH_OPEN
+#define ESP_WIFI_SCAN_AUTH_MODE_THRESHOLD WIFI_AUTH_OPEN
+#elif CONFIG_ESP_WIFI_AUTH_WEP
+#define ESP_WIFI_SCAN_AUTH_MODE_THRESHOLD WIFI_AUTH_WEP
+#elif CONFIG_ESP_WIFI_AUTH_WPA_PSK
+#define ESP_WIFI_SCAN_AUTH_MODE_THRESHOLD WIFI_AUTH_WPA_PSK
+#elif CONFIG_ESP_WIFI_AUTH_WPA2_PSK
+#define ESP_WIFI_SCAN_AUTH_MODE_THRESHOLD WIFI_AUTH_WPA2_PSK
+#elif CONFIG_ESP_WIFI_AUTH_WPA_WPA2_PSK
+#define ESP_WIFI_SCAN_AUTH_MODE_THRESHOLD WIFI_AUTH_WPA_WPA2_PSK
+#elif CONFIG_ESP_WIFI_AUTH_WPA3_PSK
+#define ESP_WIFI_SCAN_AUTH_MODE_THRESHOLD WIFI_AUTH_WPA3_PSK
+#elif CONFIG_ESP_WIFI_AUTH_WPA2_WPA3_PSK
+#define ESP_WIFI_SCAN_AUTH_MODE_THRESHOLD WIFI_AUTH_WPA2_WPA3_PSK
+#elif CONFIG_ESP_WIFI_AUTH_WAPI_PSK
+#define ESP_WIFI_SCAN_AUTH_MODE_THRESHOLD WIFI_AUTH_WAPI_PSK
+#else
+#define ESP_WIFI_SCAN_AUTH_MODE_THRESHOLD WIFI_AUTH_WPA2_PSK
+#endif
+
+
+/* FreeRTOS event group to signal when we are connected*/
+static EventGroupHandle_t s_wifi_event_group;
+
+
+/* The event group allows multiple bits for each event, but we only care about two events:
+ * - we are connected to the AP with an IP
+ * - we failed to connect after the maximum amount of retries */
+#define WIFI_CONNECTED_BIT BIT0
+#define WIFI_FAIL_BIT      BIT1
+
+static const char *TAG = "wifi station";
+
+static int s_retry_num = 0;
+
+
 // Set custom modem id before flashing:
-static const uint32_t modem_id = 0x000fbeef;
+static const uint32_t modem_id = 0xd3ad0001;
 
 static const char* LOG_TAG = "findmy_modem";
 
@@ -127,6 +176,28 @@ static void esp_gap_cb(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *par
     }
 }
 
+static void event_handler(void* arg, esp_event_base_t event_base,
+                                int32_t event_id, void* event_data)
+{
+    if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_START) {
+        esp_wifi_connect();
+    } else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_DISCONNECTED) {
+        if (s_retry_num < EXAMPLE_ESP_MAXIMUM_RETRY) {
+            esp_wifi_connect();
+            s_retry_num++;
+            ESP_LOGI(TAG, "retry to connect to the AP");
+        } else {
+            xEventGroupSetBits(s_wifi_event_group, WIFI_FAIL_BIT);
+        }
+        ESP_LOGI(TAG,"connect to the AP fail");
+    } else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP) {
+        ip_event_got_ip_t* event = (ip_event_got_ip_t*) event_data;
+        ESP_LOGI(TAG, "got ip:" IPSTR, IP2STR(&event->ip_info.ip));
+        s_retry_num = 0;
+        xEventGroupSetBits(s_wifi_event_group, WIFI_CONNECTED_BIT);
+    }
+}
+
 int is_valid_pubkey(uint8_t *pub_key_compressed) {
    uint8_t with_sign_byte[29];
    uint8_t pub_key_uncompressed[128];
@@ -188,9 +259,11 @@ void set_addr_and_payload_for_byte(uint32_t index, uint32_t msg_id, uint8_t val,
         memcpy(&public_key[8], &start_addr, 20);
     }
 
+    ESP_LOGI(LOG_TAG, "mod: %d", (8 * chunk_len * (20 / chunk_len)));
+
     uint32_t offset = (chunk_len * (index + 1)) % (8 * chunk_len * (20 / chunk_len)); // mod the offset correctly
     uint32_t remain = 8 - ((chunk_len * index) % 8);
-    
+
     if (remain == chunk_len) {
         uint8_t xor_val = val << (8 - remain);
         public_key[28 - (offset/8)] ^= xor_val;
@@ -253,10 +326,11 @@ void send_data_once_blocking(uint8_t* data_to_send, uint32_t len, uint32_t chunk
 
     int num_chunks = ((len * 8) / chunk_len);
     if ((len * 8) % chunk_len) { num_chunks++; }
-    
+
+
     uint8_t mask = 0xff >> (8 - chunk_len);
 
-    uint8_t* data = data_to_send;
+    // uint8_t* data = data_to_send;
     uint32_t end = len - 1;   
 
     for (int chunk_i = 0; chunk_i < num_chunks; chunk_i++) {
@@ -268,6 +342,8 @@ void send_data_once_blocking(uint8_t* data_to_send, uint32_t len, uint32_t chunk
         
         bool overlap = ((chunk_len * (chunk_i + 1)) / 8) != ((chunk_len * chunk_i) / 8);
     
+        // ESP_LOGI(LOG_TAG, "check 2");
+
         if (!overlap) {
             val = data_to_send[end - (offset/8)] >> remain;
             val &= mask;
@@ -306,9 +382,130 @@ void init_serial() {
     ESP_ERROR_CHECK(uart_set_pin(UART_PORT_NUM, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE, TEST_RTS, TEST_CTS));
 }
 
+//
+// Data dump list
+// dt(in):Data to dump
+// n(in) :Number of bytes of data
+//
+// for debugging flash mem
+//
+void dump(uint8_t *dt, int n)
+{
+	uint16_t clm = 0;
+	uint8_t data;
+	uint8_t sum;
+	uint8_t vsum[16];
+	uint8_t total =0;
+	uint32_t saddr =0;
+	uint32_t eaddr =n-1;
+
+	printf("----------------------------------------------------------\n");
+	uint16_t i;
+	for (i=0;i<16;i++) vsum[i]=0;  
+	uint32_t addr;
+	for (addr = saddr; addr <= eaddr; addr++) {
+		data = dt[addr];
+		if (clm == 0) {
+			sum =0;
+			printf("%05"PRIx32": ",addr);
+		}
+
+		sum+=data;
+		vsum[addr % 16]+=data;
+
+		printf("%02x ",data);
+		clm++;
+		if (clm == 16) {
+			printf("|%02x \n",sum);
+			clm = 0;
+		}
+	}
+	printf("----------------------------------------------------------\n");
+	printf("       ");
+	for (i=0; i<16;i++) {
+		total+=vsum[i];
+		printf("%02x ",vsum[i]);
+	}
+	printf("|%02x \n\n",total);
+}
+
 
 void app_main(void)
 {
+
+    W25Q64_t dev;
+	W25Q64_init(&dev);
+
+	// Get Status Register1
+	uint8_t reg1;
+	esp_err_t ret;
+	ret = W25Q64_readStatusReg1(&dev, &reg1);
+	if (ret != ESP_OK) {
+		ESP_LOGE(TAG, "readStatusReg1 fail %d",ret);
+		while(1) { vTaskDelay(1); }
+	} 
+	ESP_LOGI(TAG, "readStatusReg1 : %x", reg1);
+	
+	// Get Status Register2
+	uint8_t reg2;
+	ret = W25Q64_readStatusReg2(&dev, &reg2);
+	if (ret != ESP_OK) {
+		ESP_LOGE(TAG, "readStatusReg2 fail %d",ret);
+		while(1) { vTaskDelay(1); }
+	}
+	ESP_LOGI(TAG, "readStatusReg2 : %x", reg2);
+
+	// Get Unique ID
+	uint8_t uid[8];
+	ret = W25Q64_readUniqieID(&dev, uid);
+	if (ret != ESP_OK) {
+		ESP_LOGE(TAG, "readUniqieID fail %d",ret);
+		while(1) { vTaskDelay(1); }
+	}
+	ESP_LOGI(TAG, "readUniqieID : %x-%x-%x-%x-%x-%x-%x-%x",
+		 uid[0], uid[1], uid[2], uid[3], uid[4], uid[5], uid[6], uid[7]);
+
+	// Get JEDEC ID
+	uint8_t jid[3];
+	ret = W25Q64_readManufacturer(&dev, jid);
+	if (ret != ESP_OK) {
+		ESP_LOGE(TAG, "readManufacturer fail %d",ret);
+		while(1) { vTaskDelay(1); }
+	}
+	ESP_LOGI(TAG, "readManufacturer : %x-%x-%x",
+		 jid[0], jid[1], jid[2]);
+
+    uint8_t payload_data[PAYLOADSIZE];
+
+    uint16_t sect_no, inaddr;
+    uint32_t modemID;
+    uint8_t addr_buf[8];
+
+    // erase all on startup; this takes a while
+    // THIS NEEDS TO CHANGE!!!
+    // erase and init should be in a different file
+    //just read first address
+	W25Q64_eraseAll(&dev, true);
+
+    // initialize first address to write to, which is secto_no = 1, inaddr = 0
+    uint8_t modemID_arr[4];
+	memcpy(modemID_arr, &modem_id, 4);
+    int16_t init_result = W25Q32_initLogging(&dev, modemID_arr);
+    printf("Flash init result: %d\n", init_result);
+    if (init_result != 8){
+        ESP_LOGI(LOG_TAG, "Flash Initialization failed!");
+    }
+
+    // checking if memory initialized properly
+    memset(addr_buf, 0, 8);
+    W25Q64_read(&dev, 0, addr_buf, 8);
+    W25Q32_readLast(addr_buf, &sect_no, &inaddr, &modemID); // get the address to write at
+
+    printf("sect_no, inaddr, and modemID after flash initialization\n");
+    printf("sect_no: %d\n", sect_no);
+    printf("inaddr: %d\n", inaddr);
+    printf("modemID: %d\n", modemID);
+
     ESP_ERROR_CHECK(nvs_flash_init());
     ESP_ERROR_CHECK(esp_bt_controller_mem_release(ESP_BT_MODE_CLASSIC_BT));
     esp_bt_controller_config_t bt_cfg = BT_CONTROLLER_INIT_CONFIG_DEFAULT();
@@ -327,18 +524,63 @@ void app_main(void)
 
     uint32_t current_message_id = 0;
    
-    ESP_LOGI(LOG_TAG, "Entering serial modem mode");
-    init_serial();
+    // ESP_LOGI(LOG_TAG, "Entering serial modem mode");
+    // init_serial();
 
-    uint8_t data[] = "HELLOWORLD";
+    uint16_t count = 0;
+    uint8_t data[2];
+    uint8_t rbuf[READNUMBYTES];
+    
+    // for reading the first sector
+    uint32_t addr = 1;
+	addr<<=12;
+	addr += 0;
+    int len;
 
-    ESP_LOGI(LOG_TAG, "delay"); 
-    vTaskDelay(2000);
 
-     // TRANSMIT
-    ESP_LOGI(LOG_TAG, "Bytes: %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x", data[0], data[1], data[2], data[3], data[4], data[5], data[6], data[7], data[8], data[9]); 
-    send_data_once_blocking(data, sizeof(data) - 1, 8, current_message_id);
-    vTaskDelay(500);
+    int16_t write_result;
+
+    while (1) {
+
+        memset(payload_data, 0, PAYLOADSIZE);
+        uint32_t time = xTaskGetTickCount();
+        TagAlongPayload(payload_data, 0, count, modem_id, 0, time);
+        write_result = W25Q32_writePayload(&dev, payload_data, PAYLOADSIZE);
+
+        // get next address to write at; just for debugging
+        memset(addr_buf, 0, 8);
+        W25Q64_read(&dev, 0, addr_buf, 8);
+        W25Q32_readLast(addr_buf, &sect_no, &inaddr, &modemID); // get the address to write at
+
+        ESP_LOGI(LOG_TAG, "sect_no: %u", sect_no);
+        ESP_LOGI(LOG_TAG, "inaddr: %u", inaddr);
+        ESP_LOGI(LOG_TAG, "modemID: %u", modemID);
+
+        // data = count;
+        memcpy(data, &count, 2);
+
+        ESP_LOGI(LOG_TAG, "Bytes: %02x %02x", data[0], data[1]);
+        send_data_once_blocking(data, sizeof(data) - 1, 16, current_message_id);
+        // vTaskDelay(1000);
+        vTaskDelay(15000);
+
+        count++;
+
+        // debugging!!
+        memset(rbuf, 0, READNUMBYTES);
+        printf("fast read\n");
+        printf("fast read\n");
+        printf("fast read\n");
+        len =  W25Q64_fastread(&dev, addr, rbuf, READNUMBYTES);
+        if (len != READNUMBYTES) {
+            ESP_LOGE("W25Q32", "fastread fail");
+            while(1) { vTaskDelay(1); }
+        }
+        ESP_LOGI("W25Q32", "Fast Read Data: len=%d", len);
+        dump(rbuf, READNUMBYTES);
+        // end debugging
+    }
+    
     esp_ble_gap_stop_advertising();
 
     //IDLE 
@@ -355,3 +597,4 @@ void app_main(void)
     vTaskDelay(4000);
 
 }
+
