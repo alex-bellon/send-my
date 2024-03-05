@@ -24,6 +24,13 @@
 #include "uECC.h"
 
 #include <esp_wifi.h>
+#include <esp_http_server.h>
+#include "esp_system.h"
+#include "esp_event.h"
+#include "esp_netif.h"
+#include "esp_eth.h"
+#include "esp_tls_crypto.h"
+#include <sys/param.h>
 
 #define CHECK_BIT(var,pos) ((var) & (1<<(7-pos)))
 
@@ -61,6 +68,8 @@
 #define ESP_WIFI_SCAN_AUTH_MODE_THRESHOLD WIFI_AUTH_WPA2_PSK
 #endif
 
+#define MAX_HTTP_RECV_BUFFER 512
+#define MAX_HTTP_OUTPUT_BUFFER 2048
 
 /* FreeRTOS event group to signal when we are connected*/
 static EventGroupHandle_t s_wifi_event_group;
@@ -78,7 +87,7 @@ static int s_retry_num = 0;
 
 
 // Set custom modem id before flashing:
-static const uint32_t modem_id = 0x000fbeef;
+static uint32_t modem_id = 0xcafe0000;
 
 static const char* LOG_TAG = "findmy_modem";
 
@@ -111,6 +120,7 @@ uint8_t start_addr[20] = {
 };
 
 uint8_t curr_addr[20];  
+uint32_t current_message_id = 0;
 
 uint32_t swap_uint32( uint32_t val )
 {
@@ -381,8 +391,10 @@ void reset_advertising() {
 
 void send_data_once_blocking(uint8_t* data_to_send, uint32_t len, uint32_t chunk_len, uint32_t msg_id) {
     ESP_LOGI(LOG_TAG, "Data to send (msg_id: %d): %s", msg_id, data_to_send);
+    ESP_LOGI(LOG_TAG, "Length %d", len);
 
     int num_chunks = ((len * 8) / chunk_len);
+    ESP_LOGI(LOG_TAG, "Num chunks %d", num_chunks);
     if ((len * 8) % chunk_len) { num_chunks++; }
     
     uint8_t mask = 0xff >> (8 - chunk_len);
@@ -437,9 +449,89 @@ void init_serial() {
     ESP_ERROR_CHECK(uart_set_pin(UART_PORT_NUM, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE, TEST_RTS, TEST_CTS));
 }
 
+static esp_err_t send_post_handler(httpd_req_t *req)
+{
+    char buf[100];
+    uint8_t payload[100];
+    int ret, remaining = req->content_len;
+
+    while (remaining > 0) {
+        /* Read the data for the request */
+        if ((ret = httpd_req_recv(req, buf,
+                        MIN(remaining, sizeof(buf)))) <= 0) {
+            if (ret == HTTPD_SOCK_ERR_TIMEOUT) {
+                /* Retry receiving if timeout occurred */
+                continue;
+            }
+            return ESP_FAIL;
+        }
+
+        /* Send back the same data */
+        httpd_resp_send_chunk(req, buf, ret);
+        remaining -= ret;
+
+        /* Log data received */
+        ESP_LOGI(TAG, "=========== RECEIVED DATA ==========");
+        ESP_LOGI(TAG, "%.*s", ret, buf);
+        ESP_LOGI(TAG, "====================================");
+        
+        ESP_LOGI(TAG, "%d", ret); 
+        
+        int payload_len = ret - 9;
+        memcpy(payload, &buf[7], payload_len); 
+        ESP_LOGI(TAG, "%s", payload);
+        
+        ESP_LOGI(TAG, "Advertising with message ID %d", current_message_id);
+        for (int i = 0; i < 50; i++) {
+            send_data_once_blocking(payload, payload_len, 4, current_message_id);
+        }
+    }    
+    current_message_id++;
+    modem_id++;
+
+    // End response
+    httpd_resp_send_chunk(req, NULL, 0);
+    return ESP_OK;
+}
+
+static const httpd_uri_t send = {
+    .uri       = "/send",
+    .method    = HTTP_POST,
+    .handler   = send_post_handler,
+    .user_ctx  = NULL
+};
+
+static httpd_handle_t start_webserver(void)
+{
+    httpd_handle_t server = NULL;
+    httpd_config_t config = HTTPD_DEFAULT_CONFIG();
+    config.lru_purge_enable = true;
+
+    // Start the httpd server
+    ESP_LOGI(TAG, "Starting server on port: '%d'", config.server_port);
+    if (httpd_start(&server, &config) == ESP_OK) {
+        // Set URI handlers
+        ESP_LOGI(TAG, "Registering URI handlers");
+        httpd_register_uri_handler(server, &send);
+        #if CONFIG_EXAMPLE_BASIC_AUTH
+        httpd_register_basic_auth(server);
+        #endif
+        return server;
+    }
+
+    ESP_LOGI(TAG, "Error starting server!");
+    return NULL;
+}
+
+static esp_err_t stop_webserver(httpd_handle_t server)
+{
+    // Stop the httpd server
+    return httpd_stop(server);
+}
 
 void app_main(void)
 {
+    static httpd_handle_t server = NULL;
     ESP_ERROR_CHECK(nvs_flash_init());
     ESP_ERROR_CHECK(esp_bt_controller_mem_release(ESP_BT_MODE_CLASSIC_BT));
     esp_bt_controller_config_t bt_cfg = BT_CONTROLLER_INIT_CONFIG_DEFAULT();
@@ -458,19 +550,12 @@ void app_main(void)
 
     ESP_LOGI(TAG, "ESP_WIFI_MODE_STA");
     wifi_init_sta();
-
-    uint32_t current_message_id = 0;
-   
+ 
     ESP_LOGI(LOG_TAG, "Entering serial modem mode");
     init_serial();
 
-    uint8_t data[] = "HELLOWORLD";
+    server = start_webserver();
 
-    while (1) {
-        ESP_LOGI(LOG_TAG, "Bytes: %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x", data[0], data[1], data[2], data[3], data[4], data[5], data[6], data[7], data[8], data[9]); 
-        send_data_once_blocking(data, sizeof(data) - 1, 8, current_message_id);
-        vTaskDelay(500);
-    }
     esp_ble_gap_stop_advertising();
 }
 
