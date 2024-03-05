@@ -47,7 +47,7 @@
 // 15000 = ~2.5min
 // 30000 = 5min
 // 60000 = 10min
-#define TIMEINTERVAL 1250
+#define TIMEINTERVAL 5000
 
 // TWO:
 // Set custom modem ID
