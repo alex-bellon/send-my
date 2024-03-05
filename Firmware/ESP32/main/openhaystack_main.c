@@ -16,12 +16,14 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/event_groups.h"
+#include "freertos/timers.h"
 
 #include "driver/uart.h"
 #include "driver/gpio.h"
 #include "sdkconfig.h"
 
 #include "uECC.h"
+#include "w25q64.h"
 
 #include <esp_wifi.h>
 #include <esp_http_server.h>
@@ -47,6 +49,9 @@
 #define EXAMPLE_ESP_WIFI_PASS      "ilikecode"
 #define EXAMPLE_ESP_MAXIMUM_RETRY  5
 
+// #define TAG "W25Q64"
+#define PAYLOADSIZE 16
+#define READNUMBYTES 256
 
 #if CONFIG_ESP_WIFI_AUTH_OPEN
 #define ESP_WIFI_SCAN_AUTH_MODE_THRESHOLD WIFI_AUTH_OPEN
@@ -87,7 +92,7 @@ static int s_retry_num = 0;
 
 
 // Set custom modem id before flashing:
-static uint32_t modem_id = 0xcafe0000;
+static const uint32_t modem_id = 0xd3ad0001;
 
 static const char* LOG_TAG = "findmy_modem";
 
@@ -1206,71 +1211,6 @@ static void event_handler(void* arg, esp_event_base_t event_base,
     }
 }
 
-void wifi_init_sta(void)
-{
-    s_wifi_event_group = xEventGroupCreate();
-
-    ESP_ERROR_CHECK(esp_netif_init());
-
-    ESP_ERROR_CHECK(esp_event_loop_create_default());
-    esp_netif_create_default_wifi_sta();
-
-    wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
-    ESP_ERROR_CHECK(esp_wifi_init(&cfg));
-
-    esp_event_handler_instance_t instance_any_id;
-    esp_event_handler_instance_t instance_got_ip;
-    ESP_ERROR_CHECK(esp_event_handler_instance_register(WIFI_EVENT,
-                                                        ESP_EVENT_ANY_ID,
-                                                        &event_handler,
-                                                        NULL,
-                                                        &instance_any_id));
-    ESP_ERROR_CHECK(esp_event_handler_instance_register(IP_EVENT,
-                                                        IP_EVENT_STA_GOT_IP,
-                                                        &event_handler,
-                                                        NULL,
-                                                        &instance_got_ip));
-
-    wifi_config_t wifi_config = {
-        .sta = {
-            .ssid = EXAMPLE_ESP_WIFI_SSID,
-            .password = EXAMPLE_ESP_WIFI_PASS,
-            /* Authmode threshold resets to WPA2 as default if password matches WPA2 standards (pasword len => 8).
-             * If you want to connect the device to deprecated WEP/WPA networks, Please set the threshold value
-             * to WIFI_AUTH_WEP/WIFI_AUTH_WPA_PSK and set the password with length and format matching to
-       * WIFI_AUTH_WEP/WIFI_AUTH_WPA_PSK standards.
-             */
-            .threshold.authmode = ESP_WIFI_SCAN_AUTH_MODE_THRESHOLD,
-            .sae_pwe_h2e = WPA3_SAE_PWE_BOTH,
-        },
-    };
-    ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA) );
-    ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config) );
-    ESP_ERROR_CHECK(esp_wifi_start() );
-
-    ESP_LOGI(TAG, "wifi_init_sta finished.");
-
-    /* Waiting until either the connection is established (WIFI_CONNECTED_BIT) or connection failed for the maximum
-     * number of re-tries (WIFI_FAIL_BIT). The bits are set by event_handler() (see above) */
-    EventBits_t bits = xEventGroupWaitBits(s_wifi_event_group,
-            WIFI_CONNECTED_BIT | WIFI_FAIL_BIT,
-            pdFALSE,
-            pdFALSE,
-            portMAX_DELAY);
-
-    /* xEventGroupWaitBits() returns the bits before the call returned, hence we can test which event actually
-     * happened. */
-    if (bits & WIFI_CONNECTED_BIT) {
-        ESP_LOGI(TAG, "connected to ap SSID:%s password:%s",
-                 EXAMPLE_ESP_WIFI_SSID, EXAMPLE_ESP_WIFI_PASS);
-    } else if (bits & WIFI_FAIL_BIT) {
-        ESP_LOGI(TAG, "Failed to connect to SSID:%s, password:%s",
-                 EXAMPLE_ESP_WIFI_SSID, EXAMPLE_ESP_WIFI_PASS);
-    } else {
-        ESP_LOGE(TAG, "UNEXPECTED EVENT");
-    }
-}
-
 int is_valid_pubkey(uint8_t *pub_key_compressed) {
    uint8_t with_sign_byte[29];
    uint8_t pub_key_uncompressed[128];
@@ -1316,6 +1256,53 @@ void copy_2b_big_endian(uint8_t *dst, uint8_t *src) {
     dst[0] = src[1]; dst[1] = src[0];
 }
 
+// index as first part of payload to have an often changing MAC address
+// [2 byte magic] [4 byte modem_id] [2 byte tweak] [20 byte payload]
+void set_addr_and_payload_for_byte(uint32_t index, uint32_t msg_id, uint8_t val, uint32_t chunk_len) {
+    uint16_t valid_key_counter = 0;
+    static uint8_t public_key[28] = {0};
+    public_key[0] = 0xBA; // magic value
+    public_key[1] = 0xBE;
+    copy_4b_big_endian(&public_key[2], &modem_id);
+    public_key[6] = 0x00;
+    public_key[7] = 0x00;
+    if (index) {
+        memcpy(&public_key[8], &curr_addr, 20);
+    } else {
+        memcpy(&public_key[8], &start_addr, 20);
+    }
+
+    ESP_LOGI(LOG_TAG, "mod: %d", (8 * chunk_len * (20 / chunk_len)));
+
+    uint32_t offset = (chunk_len * (index + 1)) % (8 * chunk_len * (20 / chunk_len)); // mod the offset correctly
+    uint32_t remain = 8 - ((chunk_len * index) % 8);
+
+    if (remain == chunk_len) {
+        uint8_t xor_val = val << (8 - remain);
+        public_key[28 - (offset/8)] ^= xor_val;
+    } else if (remain > chunk_len) {
+        uint8_t xor_val = val << (8 - remain);
+        public_key[28 - ((offset/8) + 1)] ^= xor_val;
+    } else { 
+        uint8_t xor_val_lo = val << (8 - remain);
+        uint8_t xor_val_hi = val >> remain;
+        public_key[28 - ((offset/8))] ^= xor_val_lo;
+        public_key[28 - ((offset/8) + 1)] ^= xor_val_hi;
+    }
+
+    memcpy(&curr_addr, &public_key[8], 20);
+
+    do {
+      copy_2b_big_endian(&public_key[6], &valid_key_counter);
+	    valid_key_counter++;
+    } while (!is_valid_pubkey(public_key));
+
+    ESP_LOGI(LOG_TAG, "  pub key to use (%d. try): %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x", valid_key_counter, public_key[0], public_key[1], public_key[2], public_key[3], public_key[4], public_key[5], public_key[6], public_key[7], public_key[8], public_key[9], public_key[10], public_key[11], public_key[12], public_key[13],public_key[14], public_key[15],public_key[16],public_key[17],public_key[18], public_key[19], public_key[20], public_key[21], public_key[22], public_key[23], public_key[24], public_key[25], public_key[26],  public_key[27]);
+
+    set_addr_from_key(rnd_addr, public_key);
+    set_payload_from_key(adv_data, public_key);
+}
+
 // No error handling yet
 uint8_t* read_line_or_dismiss(int* len) {
     uint8_t *line = (uint8_t *) malloc(BUF_SIZE);
@@ -1347,12 +1334,51 @@ void reset_advertising() {
     }
 }
 
-void send_data_once_blocking(uint8_t* public_key) { 
-    set_addr_from_key(rnd_addr, public_key);
-    set_payload_from_key(adv_data, public_key);
-    reset_advertising();
-    vTaskDelay(2);    
+void send_data_once_blocking(uint8_t* data_to_send, uint32_t len, uint32_t chunk_len, uint32_t msg_id) {
+    ESP_LOGI(LOG_TAG, "Data to send (msg_id: %d): %s", msg_id, data_to_send);
+    ESP_LOGI(LOG_TAG, "Length %d", len);
+
+    int num_chunks = ((len * 8) / chunk_len);
+    ESP_LOGI(LOG_TAG, "Num chunks %d", num_chunks);
+    if ((len * 8) % chunk_len) { num_chunks++; }
+
+
+    uint8_t mask = 0xff >> (8 - chunk_len);
+
+    // uint8_t* data = data_to_send;
+    uint32_t end = len - 1;   
+
+    for (int chunk_i = 0; chunk_i < num_chunks; chunk_i++) {
+        uint8_t val = 0;
+
+        uint32_t offset = chunk_i * chunk_len;
+        uint32_t remain = offset % 8;
+
+        
+        bool overlap = ((chunk_len * (chunk_i + 1)) / 8) != ((chunk_len * chunk_i) / 8);
     
+        // ESP_LOGI(LOG_TAG, "check 2");
+
+        if (!overlap) {
+            val = data_to_send[end - (offset/8)] >> remain;
+            val &= mask;
+        } else { 
+            uint8_t val_hi = data_to_send[end - (offset/8) - 1];
+            val_hi = val_hi << (8 - remain);
+            val_hi &= mask; 
+            uint8_t val_lo = data_to_send[end - (offset/8)];
+            val_lo = val_lo >> remain;
+            val_lo &= mask;
+            val = val_lo ^ val_hi;
+        }
+
+
+        set_addr_and_payload_for_byte(chunk_i, msg_id, val, chunk_len);
+        ESP_LOGD(LOG_TAG, "    resetting. Will now use device address: %02x %02x %02x %02x %02x %02x", rnd_addr[0], rnd_addr[1], rnd_addr[2], rnd_addr[3], rnd_addr[4], rnd_addr[5]);
+        reset_advertising();
+        vTaskDelay(2);    
+    }
+    esp_ble_gap_stop_advertising();
 }
 
 void init_serial() {
@@ -1371,89 +1397,129 @@ void init_serial() {
     ESP_ERROR_CHECK(uart_set_pin(UART_PORT_NUM, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE, TEST_RTS, TEST_CTS));
 }
 
-static esp_err_t send_post_handler(httpd_req_t *req)
+//
+// Data dump list
+// dt(in):Data to dump
+// n(in) :Number of bytes of data
+//
+// for debugging flash mem
+//
+void dump(uint8_t *dt, int n)
 {
-    char buf[100];
-    uint8_t payload[100];
-    int ret, remaining = req->content_len;
+	uint16_t clm = 0;
+	uint8_t data;
+	uint8_t sum;
+	uint8_t vsum[16];
+	uint8_t total =0;
+	uint32_t saddr =0;
+	uint32_t eaddr =n-1;
 
-    while (remaining > 0) {
-        /* Read the data for the request */
-        if ((ret = httpd_req_recv(req, buf,
-                        MIN(remaining, sizeof(buf)))) <= 0) {
-            if (ret == HTTPD_SOCK_ERR_TIMEOUT) {
-                /* Retry receiving if timeout occurred */
-                continue;
-            }
-            return ESP_FAIL;
-        }
+	printf("----------------------------------------------------------\n");
+	uint16_t i;
+	for (i=0;i<16;i++) vsum[i]=0;  
+	uint32_t addr;
+	for (addr = saddr; addr <= eaddr; addr++) {
+		data = dt[addr];
+		if (clm == 0) {
+			sum =0;
+			printf("%05"PRIx32": ",addr);
+		}
 
-        /* Send back the same data */
-        httpd_resp_send_chunk(req, buf, ret);
-        remaining -= ret;
+		sum+=data;
+		vsum[addr % 16]+=data;
 
-        /* Log data received */
-        ESP_LOGI(TAG, "=========== RECEIVED DATA ==========");
-        ESP_LOGI(TAG, "%.*s", ret, buf);
-        ESP_LOGI(TAG, "====================================");
-        
-        ESP_LOGI(TAG, "%d", ret); 
-        
-        int payload_len = ret - 9;
-        memcpy(payload, &buf[7], payload_len); 
-        ESP_LOGI(TAG, "%s", payload);
-        
-        ESP_LOGI(TAG, "Advertising with message ID %d", current_message_id);
-        for (int i = 0; i < 50; i++) {
-            send_data_once_blocking(payload, payload_len, 4, current_message_id);
-        }
-    }    
-    current_message_id++;
-    modem_id++;
-
-    // End response
-    httpd_resp_send_chunk(req, NULL, 0);
-    return ESP_OK;
+		printf("%02x ",data);
+		clm++;
+		if (clm == 16) {
+			printf("|%02x \n",sum);
+			clm = 0;
+		}
+	}
+	printf("----------------------------------------------------------\n");
+	printf("       ");
+	for (i=0; i<16;i++) {
+		total+=vsum[i];
+		printf("%02x ",vsum[i]);
+	}
+	printf("|%02x \n\n",total);
 }
 
-static const httpd_uri_t send = {
-    .uri       = "/send",
-    .method    = HTTP_POST,
-    .handler   = send_post_handler,
-    .user_ctx  = NULL
-};
-
-static httpd_handle_t start_webserver(void)
-{
-    httpd_handle_t server = NULL;
-    httpd_config_t config = HTTPD_DEFAULT_CONFIG();
-    config.lru_purge_enable = true;
-
-    // Start the httpd server
-    ESP_LOGI(TAG, "Starting server on port: '%d'", config.server_port);
-    if (httpd_start(&server, &config) == ESP_OK) {
-        // Set URI handlers
-        ESP_LOGI(TAG, "Registering URI handlers");
-        httpd_register_uri_handler(server, &send);
-        #if CONFIG_EXAMPLE_BASIC_AUTH
-        httpd_register_basic_auth(server);
-        #endif
-        return server;
-    }
-
-    ESP_LOGI(TAG, "Error starting server!");
-    return NULL;
-}
-
-static esp_err_t stop_webserver(httpd_handle_t server)
-{
-    // Stop the httpd server
-    return httpd_stop(server);
-}
 
 void app_main(void)
 {
-    static httpd_handle_t server = NULL;
+
+    W25Q64_t dev;
+	W25Q64_init(&dev);
+
+	// Get Status Register1
+	uint8_t reg1;
+	esp_err_t ret;
+	ret = W25Q64_readStatusReg1(&dev, &reg1);
+	if (ret != ESP_OK) {
+		ESP_LOGE(TAG, "readStatusReg1 fail %d",ret);
+		while(1) { vTaskDelay(1); }
+	} 
+	ESP_LOGI(TAG, "readStatusReg1 : %x", reg1);
+	
+	// Get Status Register2
+	uint8_t reg2;
+	ret = W25Q64_readStatusReg2(&dev, &reg2);
+	if (ret != ESP_OK) {
+		ESP_LOGE(TAG, "readStatusReg2 fail %d",ret);
+		while(1) { vTaskDelay(1); }
+	}
+	ESP_LOGI(TAG, "readStatusReg2 : %x", reg2);
+
+	// Get Unique ID
+	uint8_t uid[8];
+	ret = W25Q64_readUniqieID(&dev, uid);
+	if (ret != ESP_OK) {
+		ESP_LOGE(TAG, "readUniqieID fail %d",ret);
+		while(1) { vTaskDelay(1); }
+	}
+	ESP_LOGI(TAG, "readUniqieID : %x-%x-%x-%x-%x-%x-%x-%x",
+		 uid[0], uid[1], uid[2], uid[3], uid[4], uid[5], uid[6], uid[7]);
+
+	// Get JEDEC ID
+	uint8_t jid[3];
+	ret = W25Q64_readManufacturer(&dev, jid);
+	if (ret != ESP_OK) {
+		ESP_LOGE(TAG, "readManufacturer fail %d",ret);
+		while(1) { vTaskDelay(1); }
+	}
+	ESP_LOGI(TAG, "readManufacturer : %x-%x-%x",
+		 jid[0], jid[1], jid[2]);
+
+    uint8_t payload_data[PAYLOADSIZE];
+
+    uint16_t sect_no, inaddr;
+    uint32_t modemID;
+    uint8_t addr_buf[8];
+
+    // erase all on startup; this takes a while
+    // THIS NEEDS TO CHANGE!!!
+    // erase and init should be in a different file
+    //just read first address
+	W25Q64_eraseAll(&dev, true);
+
+    // initialize first address to write to, which is secto_no = 1, inaddr = 0
+    uint8_t modemID_arr[4];
+	memcpy(modemID_arr, &modem_id, 4);
+    int16_t init_result = W25Q32_initLogging(&dev, modemID_arr);
+    printf("Flash init result: %d\n", init_result);
+    if (init_result != 8){
+        ESP_LOGI(LOG_TAG, "Flash Initialization failed!");
+    }
+
+    // checking if memory initialized properly
+    memset(addr_buf, 0, 8);
+    W25Q64_read(&dev, 0, addr_buf, 8);
+    W25Q32_readLast(addr_buf, &sect_no, &inaddr, &modemID); // get the address to write at
+
+    printf("sect_no, inaddr, and modemID after flash initialization\n");
+    printf("sect_no: %d\n", sect_no);
+    printf("inaddr: %d\n", inaddr);
+    printf("modemID: %d\n", modemID);
     ESP_ERROR_CHECK(nvs_flash_init());
     ESP_ERROR_CHECK(esp_bt_controller_mem_release(ESP_BT_MODE_CLASSIC_BT));
     esp_bt_controller_config_t bt_cfg = BT_CONTROLLER_INIT_CONFIG_DEFAULT();
@@ -1470,21 +1536,78 @@ void app_main(void)
         return;
     }
 
-    ESP_LOGI(TAG, "ESP_WIFI_MODE_STA");
-    wifi_init_sta();
- 
-    ESP_LOGI(LOG_TAG, "Entering serial modem mode");
-    init_serial();
+    uint32_t current_message_id = 0;
+   
+    // ESP_LOGI(LOG_TAG, "Entering serial modem mode");
+    // init_serial();
 
-    uint8_t public_key[28];
+    uint16_t count = 0;
+    uint8_t data[2];
+    uint8_t rbuf[READNUMBYTES];
+    
+    // for reading the first sector
+    uint32_t addr = 1;
+	addr<<=12;
+	addr += 0;
+    int len;
 
-    for (int j = 0; j < 1; j++) {
-    for (int i = 0; i < (sizeof(keys) / sizeof(keys[0])); i++) {
-        memcpy(public_key, keys[i], 28);
-        ESP_LOGI(LOG_TAG, "KEY: %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x", public_key[0], public_key[1], public_key[2], public_key[3], public_key[4], public_key[5], public_key[6], public_key[7], public_key[8], public_key[9], public_key[10], public_key[11], public_key[12], public_key[13],public_key[14], public_key[15],public_key[16],public_key[17],public_key[18], public_key[19], public_key[20], public_key[21], public_key[22], public_key[23], public_key[24], public_key[25], public_key[26], public_key[27]);
-        send_data_once_blocking(public_key);
-      }
+
+    int16_t write_result;
+
+    while (1) {
+
+        memset(payload_data, 0, PAYLOADSIZE);
+        uint32_t time = xTaskGetTickCount();
+        TagAlongPayload(payload_data, 0, count, modem_id, 0, time);
+        write_result = W25Q32_writePayload(&dev, payload_data, PAYLOADSIZE);
+
+        // get next address to write at; just for debugging
+        memset(addr_buf, 0, 8);
+        W25Q64_read(&dev, 0, addr_buf, 8);
+        W25Q32_readLast(addr_buf, &sect_no, &inaddr, &modemID); // get the address to write at
+
+        ESP_LOGI(LOG_TAG, "sect_no: %u", sect_no);
+        ESP_LOGI(LOG_TAG, "inaddr: %u", inaddr);
+        ESP_LOGI(LOG_TAG, "modemID: %u", modemID);
+
+        // data = count;
+        memcpy(data, &count, 2);
+
+        ESP_LOGI(LOG_TAG, "Bytes: %02x %02x", data[0], data[1]);
+        send_data_once_blocking(data, sizeof(data) - 1, 16, current_message_id);
+        // vTaskDelay(1000);
+        vTaskDelay(15000);
+
+        count++;
+
+        // debugging!!
+        memset(rbuf, 0, READNUMBYTES);
+        printf("fast read\n");
+        printf("fast read\n");
+        printf("fast read\n");
+        len =  W25Q64_fastread(&dev, addr, rbuf, READNUMBYTES);
+        if (len != READNUMBYTES) {
+            ESP_LOGE("W25Q32", "fastread fail");
+            while(1) { vTaskDelay(1); }
+        }
+        ESP_LOGI("W25Q32", "Fast Read Data: len=%d", len);
+        dump(rbuf, READNUMBYTES);
+        // end debugging
+    }
+    
     esp_ble_gap_stop_advertising();
-  }
-}
 
+    //IDLE 
+    ESP_LOGI(LOG_TAG, "delay"); 
+    vTaskDelay(2000);
+
+    //DO A CRYPTO 
+    ESP_LOGI(LOG_TAG, "crypto"); 
+    static uint8_t public_key[28] = {0};
+    is_valid_pubkey(public_key);
+    
+    //IDLE 
+    ESP_LOGI(LOG_TAG, "long delay"); 
+    vTaskDelay(4000);
+
+}
