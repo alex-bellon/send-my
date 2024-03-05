@@ -26,6 +26,13 @@
 #include "w25q64.h"
 
 #include <esp_wifi.h>
+#include <esp_http_server.h>
+#include "esp_system.h"
+#include "esp_event.h"
+#include "esp_netif.h"
+#include "esp_eth.h"
+#include "esp_tls_crypto.h"
+#include <sys/param.h>
 
 #define CHECK_BIT(var,pos) ((var) & (1<<(7-pos)))
 
@@ -66,6 +73,8 @@
 #define ESP_WIFI_SCAN_AUTH_MODE_THRESHOLD WIFI_AUTH_WPA2_PSK
 #endif
 
+#define MAX_HTTP_RECV_BUFFER 512
+#define MAX_HTTP_OUTPUT_BUFFER 2048
 
 /* FreeRTOS event group to signal when we are connected*/
 static EventGroupHandle_t s_wifi_event_group;
@@ -116,6 +125,7 @@ uint8_t start_addr[20] = {
 };
 
 uint8_t curr_addr[20];  
+uint32_t current_message_id = 0;
 
 uint32_t swap_uint32( uint32_t val )
 {
@@ -323,8 +333,10 @@ void reset_advertising() {
 
 void send_data_once_blocking(uint8_t* data_to_send, uint32_t len, uint32_t chunk_len, uint32_t msg_id) {
     ESP_LOGI(LOG_TAG, "Data to send (msg_id: %d): %s", msg_id, data_to_send);
+    ESP_LOGI(LOG_TAG, "Length %d", len);
 
     int num_chunks = ((len * 8) / chunk_len);
+    ESP_LOGI(LOG_TAG, "Num chunks %d", num_chunks);
     if ((len * 8) % chunk_len) { num_chunks++; }
 
 
@@ -505,7 +517,6 @@ void app_main(void)
     printf("sect_no: %d\n", sect_no);
     printf("inaddr: %d\n", inaddr);
     printf("modemID: %d\n", modemID);
-
     ESP_ERROR_CHECK(nvs_flash_init());
     ESP_ERROR_CHECK(esp_bt_controller_mem_release(ESP_BT_MODE_CLASSIC_BT));
     esp_bt_controller_config_t bt_cfg = BT_CONTROLLER_INIT_CONFIG_DEFAULT();
