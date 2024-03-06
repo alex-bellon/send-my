@@ -53,6 +53,11 @@
 #define PAYLOADSIZE 16
 #define READNUMBYTES 256
 
+// 15000 = ~2.5min
+// 30000 = 5min
+// 60000 = 10min
+#define TIMEINTERVAL 5000
+
 #if CONFIG_ESP_WIFI_AUTH_OPEN
 #define ESP_WIFI_SCAN_AUTH_MODE_THRESHOLD WIFI_AUTH_OPEN
 #elif CONFIG_ESP_WIFI_AUTH_WEP
@@ -1334,51 +1339,22 @@ void reset_advertising() {
     }
 }
 
-void send_data_once_blocking(uint8_t* data_to_send, uint32_t len, uint32_t chunk_len, uint32_t msg_id) {
-    ESP_LOGI(LOG_TAG, "Data to send (msg_id: %d): %s", msg_id, data_to_send);
-    ESP_LOGI(LOG_TAG, "Length %d", len);
+void send_data_once_blocking(uint8_t* data_to_send, uint32_t len) {
 
-    int num_chunks = ((len * 8) / chunk_len);
-    ESP_LOGI(LOG_TAG, "Num chunks %d", num_chunks);
-    if ((len * 8) % chunk_len) { num_chunks++; }
+ 	uint16_t valid_key_counter = 0;
+    static uint8_t public_key[28] = {0};
+    for (int i = 0; i < len; i++) {
+        public_key[i] = data_to_send[i];
+    } 
 
+    set_addr_from_key(rnd_addr, public_key);
+    set_payload_from_key(adv_data, public_key);
 
-    uint8_t mask = 0xff >> (8 - chunk_len);
+    ESP_LOGI(LOG_TAG, "  pub key to use (%d. try): %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x", valid_key_counter, public_key[0], public_key[1], public_key[2], public_key[3], public_key[4], public_key[5], public_key[6], public_key[7], public_key[8], public_key[9], public_key[10], public_key[11], public_key[12], public_key[13],public_key[14], public_key[15],public_key[16],public_key[17],public_key[18], public_key[19], public_key[20], public_key[21], public_key[22], public_key[23], public_key[24], public_key[25], public_key[26],  public_key[27]);
+    ESP_LOGI(LOG_TAG, " ADDR: %02x %02x %02x %02x %02x %02x", rnd_addr[0], rnd_addr[1], rnd_addr[2], rnd_addr[3], rnd_addr[4], rnd_addr[5]);
+    vTaskDelay(2);
 
-    // uint8_t* data = data_to_send;
-    uint32_t end = len - 1;   
-
-    for (int chunk_i = 0; chunk_i < num_chunks; chunk_i++) {
-        uint8_t val = 0;
-
-        uint32_t offset = chunk_i * chunk_len;
-        uint32_t remain = offset % 8;
-
-        
-        bool overlap = ((chunk_len * (chunk_i + 1)) / 8) != ((chunk_len * chunk_i) / 8);
-    
-        // ESP_LOGI(LOG_TAG, "check 2");
-
-        if (!overlap) {
-            val = data_to_send[end - (offset/8)] >> remain;
-            val &= mask;
-        } else { 
-            uint8_t val_hi = data_to_send[end - (offset/8) - 1];
-            val_hi = val_hi << (8 - remain);
-            val_hi &= mask; 
-            uint8_t val_lo = data_to_send[end - (offset/8)];
-            val_lo = val_lo >> remain;
-            val_lo &= mask;
-            val = val_lo ^ val_hi;
-        }
-
-
-        set_addr_and_payload_for_byte(chunk_i, msg_id, val, chunk_len);
-        ESP_LOGD(LOG_TAG, "    resetting. Will now use device address: %02x %02x %02x %02x %02x %02x", rnd_addr[0], rnd_addr[1], rnd_addr[2], rnd_addr[3], rnd_addr[4], rnd_addr[5]);
-        reset_advertising();
-        vTaskDelay(2);    
-    }
-    esp_ble_gap_stop_advertising();
+    reset_advertising();
 }
 
 void init_serial() {
@@ -1447,79 +1423,6 @@ void dump(uint8_t *dt, int n)
 
 void app_main(void)
 {
-
-    W25Q64_t dev;
-	W25Q64_init(&dev);
-
-	// Get Status Register1
-	uint8_t reg1;
-	esp_err_t ret;
-	ret = W25Q64_readStatusReg1(&dev, &reg1);
-	if (ret != ESP_OK) {
-		ESP_LOGE(TAG, "readStatusReg1 fail %d",ret);
-		while(1) { vTaskDelay(1); }
-	} 
-	ESP_LOGI(TAG, "readStatusReg1 : %x", reg1);
-	
-	// Get Status Register2
-	uint8_t reg2;
-	ret = W25Q64_readStatusReg2(&dev, &reg2);
-	if (ret != ESP_OK) {
-		ESP_LOGE(TAG, "readStatusReg2 fail %d",ret);
-		while(1) { vTaskDelay(1); }
-	}
-	ESP_LOGI(TAG, "readStatusReg2 : %x", reg2);
-
-	// Get Unique ID
-	uint8_t uid[8];
-	ret = W25Q64_readUniqieID(&dev, uid);
-	if (ret != ESP_OK) {
-		ESP_LOGE(TAG, "readUniqieID fail %d",ret);
-		while(1) { vTaskDelay(1); }
-	}
-	ESP_LOGI(TAG, "readUniqieID : %x-%x-%x-%x-%x-%x-%x-%x",
-		 uid[0], uid[1], uid[2], uid[3], uid[4], uid[5], uid[6], uid[7]);
-
-	// Get JEDEC ID
-	uint8_t jid[3];
-	ret = W25Q64_readManufacturer(&dev, jid);
-	if (ret != ESP_OK) {
-		ESP_LOGE(TAG, "readManufacturer fail %d",ret);
-		while(1) { vTaskDelay(1); }
-	}
-	ESP_LOGI(TAG, "readManufacturer : %x-%x-%x",
-		 jid[0], jid[1], jid[2]);
-
-    uint8_t payload_data[PAYLOADSIZE];
-
-    uint16_t sect_no, inaddr;
-    uint32_t modemID;
-    uint8_t addr_buf[8];
-
-    // erase all on startup; this takes a while
-    // THIS NEEDS TO CHANGE!!!
-    // erase and init should be in a different file
-    //just read first address
-	W25Q64_eraseAll(&dev, true);
-
-    // initialize first address to write to, which is secto_no = 1, inaddr = 0
-    uint8_t modemID_arr[4];
-	memcpy(modemID_arr, &modem_id, 4);
-    int16_t init_result = W25Q32_initLogging(&dev, modemID_arr);
-    printf("Flash init result: %d\n", init_result);
-    if (init_result != 8){
-        ESP_LOGI(LOG_TAG, "Flash Initialization failed!");
-    }
-
-    // checking if memory initialized properly
-    memset(addr_buf, 0, 8);
-    W25Q64_read(&dev, 0, addr_buf, 8);
-    W25Q32_readLast(addr_buf, &sect_no, &inaddr, &modemID); // get the address to write at
-
-    printf("sect_no, inaddr, and modemID after flash initialization\n");
-    printf("sect_no: %d\n", sect_no);
-    printf("inaddr: %d\n", inaddr);
-    printf("modemID: %d\n", modemID);
     ESP_ERROR_CHECK(nvs_flash_init());
     ESP_ERROR_CHECK(esp_bt_controller_mem_release(ESP_BT_MODE_CLASSIC_BT));
     esp_bt_controller_config_t bt_cfg = BT_CONTROLLER_INIT_CONFIG_DEFAULT();
@@ -1542,57 +1445,15 @@ void app_main(void)
     // init_serial();
 
     uint16_t count = 0;
-    uint8_t data[2];
-    uint8_t rbuf[READNUMBYTES];
-    
-    // for reading the first sector
-    uint32_t addr = 1;
-	addr<<=12;
-	addr += 0;
-    int len;
 
 
     int16_t write_result;
 
     while (1) {
-
-        memset(payload_data, 0, PAYLOADSIZE);
-        uint32_t time = xTaskGetTickCount();
-        TagAlongPayload(payload_data, 0, count, modem_id, 0, time);
-        write_result = W25Q32_writePayload(&dev, payload_data, PAYLOADSIZE);
-
-        // get next address to write at; just for debugging
-        memset(addr_buf, 0, 8);
-        W25Q64_read(&dev, 0, addr_buf, 8);
-        W25Q32_readLast(addr_buf, &sect_no, &inaddr, &modemID); // get the address to write at
-
-        ESP_LOGI(LOG_TAG, "sect_no: %u", sect_no);
-        ESP_LOGI(LOG_TAG, "inaddr: %u", inaddr);
-        ESP_LOGI(LOG_TAG, "modemID: %u", modemID);
-
-        // data = count;
-        memcpy(data, &count, 2);
-
-        ESP_LOGI(LOG_TAG, "Bytes: %02x %02x", data[0], data[1]);
-        send_data_once_blocking(data, sizeof(data) - 1, 16, current_message_id);
-        // vTaskDelay(1000);
-        vTaskDelay(15000);
+        send_data_once_blocking(keys[count % 1250], 28);
+        vTaskDelay(TIMEINTERVAL);
 
         count++;
-
-        // debugging!!
-        memset(rbuf, 0, READNUMBYTES);
-        printf("fast read\n");
-        printf("fast read\n");
-        printf("fast read\n");
-        len =  W25Q64_fastread(&dev, addr, rbuf, READNUMBYTES);
-        if (len != READNUMBYTES) {
-            ESP_LOGE("W25Q32", "fastread fail");
-            while(1) { vTaskDelay(1); }
-        }
-        ESP_LOGI("W25Q32", "Fast Read Data: len=%d", len);
-        dump(rbuf, READNUMBYTES);
-        // end debugging
     }
     
     esp_ble_gap_stop_advertising();
